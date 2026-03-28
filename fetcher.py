@@ -235,11 +235,51 @@ def fetch_ticker_detail_live(ticker: str) -> dict:
         except Exception as e:
             log.warning(f"[{ticker}] analyst_price_targets error: {e}")
 
+        # Earnings per share (estimate vs actual)
+        earnings_history = []
+        try:
+            ed = t.earnings_dates
+            if ed is not None and not ed.empty:
+                for date_idx, row in ed.head(12).iterrows():
+                    estimate = row.get("EPS Estimate")
+                    actual = row.get("Reported EPS")
+                    surprise = row.get("Surprise(%)")
+                    earnings_history.append({
+                        "date": date_idx.strftime("%Y-%m-%d") if hasattr(date_idx, 'strftime') else str(date_idx)[:10],
+                        "quarter": date_idx.strftime("%b %y") if hasattr(date_idx, 'strftime') else "",
+                        "estimate": round(float(estimate), 2) if estimate == estimate and estimate is not None else None,
+                        "actual": round(float(actual), 2) if actual == actual and actual is not None else None,
+                        "surprise_pct": round(float(surprise), 2) if surprise == surprise and surprise is not None else None,
+                    })
+        except Exception as e:
+            log.warning(f"[{ticker}] earnings_dates error: {e}")
+
+        # Revenue & earnings (annual + quarterly)
+        revenue_earnings = {"annual": [], "quarterly": []}
+        try:
+            for period, attr in [("annual", "financials"), ("quarterly", "quarterly_financials")]:
+                df = getattr(t, attr)
+                if df is not None and not df.empty:
+                    for col in df.columns:
+                        rev = df.at["Total Revenue", col] if "Total Revenue" in df.index else None
+                        ni = df.at["Net Income", col] if "Net Income" in df.index else None
+                        label = col.strftime("FY %Y") if period == "annual" else col.strftime("%b %y")
+                        revenue_earnings[period].append({
+                            "label": label,
+                            "revenue": int(rev) if rev == rev and rev is not None else None,
+                            "earnings": int(ni) if ni == ni and ni is not None else None,
+                        })
+                    revenue_earnings[period].reverse()
+        except Exception as e:
+            log.warning(f"[{ticker}] financials error: {e}")
+
         return {
             "analyst_history": analyst_history,
             "recommendations_monthly": recommendations_monthly,
             "price_history": price_history,
             "price_targets": price_targets,
+            "earnings_history": earnings_history,
+            "revenue_earnings": revenue_earnings,
         }
 
     except Exception as e:
@@ -249,6 +289,8 @@ def fetch_ticker_detail_live(ticker: str) -> dict:
             "recommendations_monthly": [],
             "price_history": [],
             "price_targets": {},
+            "earnings_history": [],
+            "revenue_earnings": {"annual": [], "quarterly": []},
         }
 
 

@@ -1,4 +1,5 @@
 yfinance
+lxml
 gspread
 google-auth
 Flask

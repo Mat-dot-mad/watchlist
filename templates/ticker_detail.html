@@ -4,6 +4,7 @@
 {% endblock %}
 
 {% block content %}
+{% set cs = detail.currency|cur_sym %}
 <div class="detail-header">
     <a href="{{ url_for('dashboard') }}" class="btn btn-small">&larr; Back</a>
     <div class="detail-title">
@@ -12,24 +13,65 @@
         {% if detail.sector %}
         <span class="sector-badge">{{ detail.sector }}</span>
         {% endif %}
+        <span class="price-inline">{{ cs }}{{ detail.current_price|fmt_val }}
+            {% if detail.upside is not none %}
+            <span class="{{ 'positive' if detail.upside > 0 else 'negative' }}">{{ detail.upside }}%</span>
+            {% endif %}
+        </span>
     </div>
 </div>
 
-{# ── Top Row: Price + Latest Rating ── #}
-<div class="detail-top-row">
-    <div class="price-card">
-        <div class="price-large">{{ detail.currency|cur_sym }}{{ detail.current_price|fmt_val }}</div>
-        {% if detail.upside is not none %}
-        <div class="price-upside {{ 'positive' if detail.upside > 0 else 'negative' }}">
-            {{ detail.upside }}% to target
+{# ── Row 1: Price Targets | Recommendations | Latest Rating ── #}
+<div class="detail-row-3">
+    {# Price Targets gauge #}
+    {% if live.price_targets and live.price_targets.low and live.price_targets.high %}
+    {% set pt = live.price_targets %}
+    {% set low = pt.low %}
+    {% set high = pt.high %}
+    {% set price = pt.current or detail.current_price %}
+    {% set mean = pt.mean or price %}
+    {% set range_min = [low, price]|min * 0.95 %}
+    {% set range_max = high * 1.05 %}
+    {% set span = range_max - range_min or 1 %}
+    <div class="detail-card">
+        <h3 class="card-title">Analyst Price Targets</h3>
+        <div class="price-range">
+            <div class="price-range-bar">
+                <div class="price-range-target" style="left: {{ ((low - range_min) / span * 100)|round(1) }}%; width: {{ ((high - low) / span * 100)|round(1) }}%;"></div>
+                <div class="price-range-marker price-marker" style="left: {{ ((price - range_min) / span * 100)|round(1) }}%;">
+                    <span class="marker-label">{{ price|fmt_val }}</span>
+                    <span class="marker-sublabel">Current</span>
+                </div>
+                <div class="price-range-marker target-marker" style="left: {{ ((mean - range_min) / span * 100)|round(1) }}%;">
+                    <span class="marker-label marker-label-target">{{ mean|fmt_val }}</span>
+                    <span class="marker-sublabel marker-sublabel-target">Average</span>
+                </div>
+            </div>
+            <div class="price-range-labels">
+                <span>{{ low|fmt_val }}<br><small>Low</small></span>
+                <span>{{ high|fmt_val }}<br><small>High</small></span>
+            </div>
         </div>
+    </div>
+    {% else %}
+    <div class="detail-card"><h3 class="card-title">Analyst Price Targets</h3><p class="no-data">No data</p></div>
+    {% endif %}
+
+    {# Recommendations chart #}
+    <div class="detail-card">
+        <h3 class="card-title">Analyst Recommendations</h3>
+        {% if live.recommendations_monthly %}
+        <div style="height:180px"><canvas id="recChart"></canvas></div>
+        {% else %}
+        <p class="no-data">No data</p>
         {% endif %}
     </div>
 
-    {% if live.analyst_history %}
-    {% set latest = live.analyst_history[0] %}
-    <div class="latest-rating-card">
-        <div class="latest-rating-header">Latest Rating</div>
+    {# Latest Rating #}
+    <div class="detail-card">
+        <h3 class="card-title">Latest Rating</h3>
+        {% if live.analyst_history %}
+        {% set latest = live.analyst_history[0] %}
         <div class="latest-rating-body">
             <div class="latest-rating-row">
                 <span class="label">Date</span>
@@ -40,18 +82,27 @@
                 <span>{{ latest.firm }}</span>
             </div>
             <div class="latest-rating-row">
+                <span class="label">Rating Action</span>
+                <span>{{ latest.action or '—' }}</span>
+            </div>
+            <div class="latest-rating-row">
                 <span class="label">Rating</span>
                 <span class="rating-badge {{ latest.to_grade|rating_class }}">{{ latest.to_grade }}</span>
             </div>
             {% if latest.price_target %}
             <div class="latest-rating-row">
+                <span class="label">Price Action</span>
+                <span>
+                    {% if latest.price_action %}
+                    <span class="action-badge action-{{ latest.price_action|lower }}">{{ latest.price_action }}</span>
+                    {% else %}—{% endif %}
+                </span>
+            </div>
+            <div class="latest-rating-row">
                 <span class="label">Price Target</span>
                 <span>
                     {% if latest.prior_target %}
                         {{ latest.prior_target }} &rarr; {{ latest.price_target }}
-                        {% if latest.price_action %}
-                        <span class="action-badge action-{{ latest.price_action|lower }}">{{ latest.price_action }}</span>
-                        {% endif %}
                     {% else %}
                         {{ latest.price_target }}
                     {% endif %}
@@ -59,56 +110,45 @@
             </div>
             {% endif %}
         </div>
+        {% else %}
+        <p class="no-data">No data</p>
+        {% endif %}
     </div>
-    {% endif %}
 </div>
 
-{# ── 1-Year Price Chart ── #}
+{# ── Row 2: EPS | Revenue vs Earnings ── #}
+<div class="detail-row-2">
+    <div class="detail-card">
+        <h3 class="card-title">Earnings Per Share</h3>
+        {% if live.earnings_history %}
+        <div style="height:220px"><canvas id="epsChart"></canvas></div>
+        {% else %}
+        <p class="no-data">No data</p>
+        {% endif %}
+    </div>
+    <div class="detail-card">
+        <div class="card-title-row">
+            <h3 class="card-title">Revenue vs. Earnings</h3>
+            {% if live.revenue_earnings.annual or live.revenue_earnings.quarterly %}
+            <div class="toggle-group">
+                <button class="toggle-btn active" data-target="annual">Annual</button>
+                <button class="toggle-btn" data-target="quarterly">Quarterly</button>
+            </div>
+            {% endif %}
+        </div>
+        {% if live.revenue_earnings.annual or live.revenue_earnings.quarterly %}
+        <div style="height:220px"><canvas id="revenueChart"></canvas></div>
+        {% else %}
+        <p class="no-data">No data</p>
+        {% endif %}
+    </div>
+</div>
+
+{# ── Row 3: Price Chart (1Y) ── #}
 {% if live.price_history %}
-<div class="chart-card chart-card-full">
-    <h3>Price History (1Y)</h3>
-    <canvas id="priceChart"></canvas>
-</div>
-{% endif %}
-
-{# ── Price vs Target Range ── #}
-{% if live.price_targets and live.price_targets.low and live.price_targets.high %}
-{% set pt = live.price_targets %}
-<div class="price-range-card">
-    <h3>Analyst Price Targets</h3>
-    {% set low = pt.low %}
-    {% set high = pt.high %}
-    {% set price = pt.current or detail.current_price %}
-    {% set mean = pt.mean or price %}
-    {% set range_min = [low, price]|min * 0.95 %}
-    {% set range_max = high * 1.05 %}
-    {% set span = range_max - range_min or 1 %}
-    <div class="price-range">
-        <div class="price-range-bar">
-            <div class="price-range-target" style="left: {{ ((low - range_min) / span * 100)|round(1) }}%; width: {{ ((high - low) / span * 100)|round(1) }}%;">
-            </div>
-            <div class="price-range-marker price-marker" style="left: {{ ((price - range_min) / span * 100)|round(1) }}%;" title="Current: {{ price }}">
-                <span class="marker-label">{{ price|fmt_val }}</span>
-                <span class="marker-sublabel">Current</span>
-            </div>
-            <div class="price-range-marker target-marker" style="left: {{ ((mean - range_min) / span * 100)|round(1) }}%;" title="Target: {{ mean }}">
-                <span class="marker-label marker-label-target">{{ mean|fmt_val }}</span>
-                <span class="marker-sublabel marker-sublabel-target">Average</span>
-            </div>
-        </div>
-        <div class="price-range-labels">
-            <span>{{ low|fmt_val }}<br><small>Low</small></span>
-            <span>{{ high|fmt_val }}<br><small>High</small></span>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-{# ── Analyst Recommendations Over Time ── #}
-{% if live.recommendations_monthly %}
-<div class="chart-card">
-    <h3>Analyst Recommendations</h3>
-    <canvas id="recChart"></canvas>
+<div class="detail-card detail-card-full">
+    <h3 class="card-title">Price History (1Y)</h3>
+    <div style="height:180px"><canvas id="priceChart"></canvas></div>
 </div>
 {% endif %}
 
@@ -209,70 +249,14 @@
 <script>
 Chart.defaults.color = '#8b949e';
 Chart.defaults.borderColor = '#21262d';
+var chartOpts = { responsive: true, maintainAspectRatio: false };
 
-{% if live.price_history %}
-(function() {
-    const priceData = {{ live.price_history|tojson }};
-    const labels = priceData.map(p => p.date);
-    const closes = priceData.map(p => p.close);
-
-    // Calculate moving averages
-    function ma(data, period) {
-        return data.map((_, i) => {
-            if (i < period - 1) return null;
-            const slice = data.slice(i - period + 1, i + 1);
-            return slice.reduce((a, b) => a + b, 0) / period;
-        });
-    }
-
-    new Chart(document.getElementById('priceChart'), {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'Price',
-                    data: closes,
-                    borderColor: '#58a6ff',
-                    borderWidth: 1.5,
-                    pointRadius: 0,
-                    tension: 0,
-                    fill: false,
-                },
-                {
-                    label: '50D MA',
-                    data: ma(closes, 50),
-                    borderColor: '#d29922',
-                    borderWidth: 1,
-                    pointRadius: 0,
-                    borderDash: [4, 2],
-                    tension: 0.3,
-                },
-                {
-                    label: '200D MA',
-                    data: ma(closes, 200),
-                    borderColor: '#f85149',
-                    borderWidth: 1,
-                    pointRadius: 0,
-                    borderDash: [4, 2],
-                    tension: 0.3,
-                },
-            ]
-        },
-        options: {
-            responsive: true,
-            interaction: { intersect: false, mode: 'index' },
-            plugins: {
-                legend: { position: 'bottom', labels: { boxWidth: 12, padding: 16 } },
-            },
-            scales: {
-                x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } },
-                y: { grid: { color: '#21262d' } },
-            },
-        }
-    });
-})();
-{% endif %}
+function fmtB(v) {
+    if (v >= 1e12) return (v/1e12).toFixed(1) + 'T';
+    if (v >= 1e9) return (v/1e9).toFixed(1) + 'B';
+    if (v >= 1e6) return (v/1e6).toFixed(0) + 'M';
+    return v.toLocaleString();
+}
 
 {% if live.recommendations_monthly %}
 (function() {
@@ -293,13 +277,208 @@ Chart.defaults.borderColor = '#21262d';
             ]
         },
         options: {
-            responsive: true,
+            ...chartOpts,
             plugins: {
-                legend: { position: 'bottom', labels: { boxWidth: 12, padding: 16 } },
+                legend: { position: 'right', labels: { boxWidth: 10, padding: 8, font: { size: 10 } } },
+                tooltip: {
+                    callbacks: {
+                        afterBody: function(items) {
+                            var total = items.reduce((s, i) => s + i.raw, 0);
+                            return 'Total: ' + total;
+                        }
+                    }
+                }
             },
             scales: {
                 x: { stacked: true, grid: { display: false } },
-                y: { stacked: true, grid: { color: '#21262d' } },
+                y: { stacked: true, grid: { color: '#21262d' }, ticks: { display: false } },
+            },
+        }
+    });
+})();
+{% endif %}
+
+{% if live.earnings_history %}
+(function() {
+    const eps = {{ live.earnings_history|tojson }};
+    // Show last 8 quarters, reversed to chronological
+    const data = eps.filter(e => e.estimate !== null || e.actual !== null).slice(0, 8).reverse();
+    const labels = data.map(e => e.quarter);
+
+    new Chart(document.getElementById('epsChart'), {
+        type: 'scatter',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Estimate',
+                    data: data.map((e, i) => e.estimate !== null ? { x: i, y: e.estimate } : null).filter(Boolean),
+                    backgroundColor: 'transparent',
+                    borderColor: '#8b949e',
+                    borderWidth: 2,
+                    pointRadius: 6,
+                    pointStyle: 'circle',
+                },
+                {
+                    label: 'Actual',
+                    data: data.map((e, i) => e.actual !== null ? { x: i, y: e.actual } : null).filter(Boolean),
+                    backgroundColor: '#3fb950',
+                    borderColor: '#3fb950',
+                    pointRadius: 7,
+                    pointStyle: 'circle',
+                },
+            ]
+        },
+        options: {
+            ...chartOpts,
+            plugins: {
+                legend: { position: 'top', labels: { boxWidth: 10, padding: 12, font: { size: 10 } } },
+                tooltip: {
+                    callbacks: {
+                        title: (items) => labels[items[0].parsed.x] || '',
+                        label: (item) => item.dataset.label + ': ' + item.parsed.y.toFixed(2),
+                        afterBody: function(items) {
+                            var idx = items[0].parsed.x;
+                            var d = data[idx];
+                            if (d && d.surprise_pct !== null) {
+                                var beat = d.surprise_pct >= 0;
+                                return (beat ? 'Beat' : 'Miss') + ': ' + (beat ? '+' : '') + d.surprise_pct.toFixed(2) + '%';
+                            }
+                            return '';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    grid: { color: '#21262d' },
+                    ticks: {
+                        callback: (val) => labels[val] || '',
+                        stepSize: 1,
+                    },
+                    min: -0.5,
+                    max: data.length - 0.5,
+                },
+                y: { grid: { color: '#21262d' } },
+            },
+        },
+        plugins: [{
+            id: 'epsAnnotations',
+            afterDraw: function(chart) {
+                var ctx = chart.ctx;
+                var xScale = chart.scales.x;
+                var yScale = chart.scales.y;
+                data.forEach(function(d, i) {
+                    if (d.actual !== null && d.surprise_pct !== null) {
+                        var x = xScale.getPixelForValue(i);
+                        var y = yScale.getPixelForValue(d.actual);
+                        var beat = d.surprise_pct >= 0;
+                        ctx.save();
+                        ctx.fillStyle = beat ? '#3fb950' : '#f85149';
+                        ctx.font = 'bold 9px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText((beat ? 'Beat' : 'Miss'), x, y + 22);
+                        if (d.estimate !== null) {
+                            var diff = d.actual - d.estimate;
+                            ctx.fillText((diff >= 0 ? '+' : '') + diff.toFixed(2), x, y + 32);
+                        }
+                        ctx.restore();
+                    }
+                });
+            }
+        }]
+    });
+})();
+{% endif %}
+
+{% if live.revenue_earnings.annual or live.revenue_earnings.quarterly %}
+(function() {
+    var annualData = {{ live.revenue_earnings.annual|tojson }};
+    var quarterlyData = {{ live.revenue_earnings.quarterly|tojson }};
+    var canvas = document.getElementById('revenueChart');
+    var currentChart = null;
+
+    function buildChart(data) {
+        if (currentChart) currentChart.destroy();
+        currentChart = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: data.map(d => d.label),
+                datasets: [
+                    {
+                        label: 'Revenue',
+                        data: data.map(d => d.revenue),
+                        backgroundColor: '#58a6ff',
+                        barPercentage: 0.6,
+                    },
+                    {
+                        label: 'Earnings',
+                        data: data.map(d => d.earnings),
+                        backgroundColor: '#d29922',
+                        barPercentage: 0.6,
+                    },
+                ]
+            },
+            options: {
+                ...chartOpts,
+                plugins: {
+                    legend: { position: 'top', labels: { boxWidth: 10, padding: 12, font: { size: 10 } } },
+                    tooltip: { callbacks: { label: (item) => item.dataset.label + ': ' + fmtB(item.raw) } },
+                },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { grid: { color: '#21262d' }, ticks: { callback: (v) => fmtB(v) } },
+                },
+            }
+        });
+    }
+
+    // Build initial (annual)
+    buildChart(annualData.length ? annualData : quarterlyData);
+
+    // Toggle buttons
+    document.querySelectorAll('.toggle-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            buildChart(btn.dataset.target === 'annual' ? annualData : quarterlyData);
+        });
+    });
+})();
+{% endif %}
+
+{% if live.price_history %}
+(function() {
+    const priceData = {{ live.price_history|tojson }};
+    const labels = priceData.map(p => p.date);
+    const closes = priceData.map(p => p.close);
+
+    function ma(data, period) {
+        return data.map((_, i) => {
+            if (i < period - 1) return null;
+            const slice = data.slice(i - period + 1, i + 1);
+            return slice.reduce((a, b) => a + b, 0) / period;
+        });
+    }
+
+    new Chart(document.getElementById('priceChart'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Price', data: closes, borderColor: '#58a6ff', borderWidth: 1.5, pointRadius: 0, tension: 0, fill: false },
+                { label: '50D MA', data: ma(closes, 50), borderColor: '#d29922', borderWidth: 1, pointRadius: 0, borderDash: [4, 2], tension: 0.3 },
+                { label: '200D MA', data: ma(closes, 200), borderColor: '#f85149', borderWidth: 1, pointRadius: 0, borderDash: [4, 2], tension: 0.3 },
+            ]
+        },
+        options: {
+            ...chartOpts,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 16, font: { size: 10 } } } },
+            scales: {
+                x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } },
+                y: { grid: { color: '#21262d' } },
             },
         }
     });

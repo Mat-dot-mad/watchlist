@@ -437,8 +437,18 @@ tr:hover td { background: #161b22; }
     font-weight: 500;
 }
 
-.toggle-btn.active { background: #21262d; color: #e1e4e8; }
-.toggle-btn:hover { color: #e1e4e8; }
+.toggle-btn.active, .period-btn.active { background: #21262d; color: #e1e4e8; }
+.toggle-btn:hover, .period-btn:hover { color: #e1e4e8; }
+
+.period-btn {
+    background: transparent;
+    border: none;
+    color: #8b949e;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.65rem;
+    cursor: pointer;
+    font-weight: 500;
+}
 
 /* 3-column and 2-column rows */
 .detail-row-3 {

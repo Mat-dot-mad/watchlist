@@ -360,6 +360,22 @@ tr:hover td { background: #161b22; }
     margin-left: 0.5rem;
 }
 
+.price-change {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.upside-tag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    margin-left: 0.25rem;
+}
+
+.upside-tag.positive { background: rgba(63, 185, 80, 0.15); color: #3fb950; }
+.upside-tag.negative { background: rgba(248, 81, 73, 0.15); color: #f85149; }
+
 .sector-badge {
     font-size: 0.7rem;
     padding: 0.15rem 0.5rem;
@@ -517,6 +533,11 @@ tr:hover td { background: #161b22; }
 }
 
 .price-range-labels small { font-size: 0.55rem; color: #484f58; }
+
+/* When markers overlap, push target label below the bar */
+.price-range-stacked { padding-top: 2.5rem; padding-bottom: 1.5rem; }
+.price-range-stacked .target-marker .marker-label-target { top: 18px; }
+.price-range-stacked .target-marker .marker-sublabel-target { top: 32px; }
 
 /* Metrics Grid */
 .metrics-grid {

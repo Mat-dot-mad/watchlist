@@ -14,10 +14,13 @@
         <span class="sector-badge">{{ detail.sector }}</span>
         {% endif %}
         <span class="price-inline">{{ cs }}{{ detail.current_price|fmt_val }}
-            {% if detail.upside is not none %}
-            <span class="{{ 'positive' if detail.upside > 0 else 'negative' }}">{{ detail.upside }}%</span>
+            {% if live.price_change %}
+            <span class="price-change {{ 'positive' if live.price_change > 0 else 'negative' }}">({{ '%+.2f'|format(live.price_change) }} / {{ '%+.2f'|format(live.price_change_pct) }}%)</span>
             {% endif %}
         </span>
+        {% if detail.upside is not none %}
+        <span class="upside-tag {{ 'positive' if detail.upside > 0 else 'negative' }}">Upside {{ detail.upside }}%</span>
+        {% endif %}
     </div>
 </div>
 
@@ -33,16 +36,19 @@
     {% set range_min = [low, price]|min * 0.95 %}
     {% set range_max = high * 1.05 %}
     {% set span = range_max - range_min or 1 %}
+    {% set price_pct = ((price - range_min) / span * 100)|round(1) %}
+    {% set mean_pct = ((mean - range_min) / span * 100)|round(1) %}
+    {% set too_close = (mean_pct - price_pct)|abs < 15 %}
     <div class="detail-card">
         <h3 class="card-title">Analyst Price Targets</h3>
-        <div class="price-range">
+        <div class="price-range{% if too_close %} price-range-stacked{% endif %}">
             <div class="price-range-bar">
                 <div class="price-range-target" style="left: {{ ((low - range_min) / span * 100)|round(1) }}%; width: {{ ((high - low) / span * 100)|round(1) }}%;"></div>
-                <div class="price-range-marker price-marker" style="left: {{ ((price - range_min) / span * 100)|round(1) }}%;">
+                <div class="price-range-marker price-marker" style="left: {{ price_pct }}%;">
                     <span class="marker-label">{{ price|fmt_val }}</span>
                     <span class="marker-sublabel">Current</span>
                 </div>
-                <div class="price-range-marker target-marker" style="left: {{ ((mean - range_min) / span * 100)|round(1) }}%;">
+                <div class="price-range-marker target-marker" style="left: {{ mean_pct }}%;">
                     <span class="marker-label marker-label-target">{{ mean|fmt_val }}</span>
                     <span class="marker-sublabel marker-sublabel-target">Average</span>
                 </div>
@@ -264,6 +270,11 @@ function fmtB(v) {
     const labels = recData.map(r => r.period).reverse();
     const getData = (key) => recData.map(r => r[key]).reverse();
 
+    // Compute totals for data labels
+    var totals = labels.map((_, i) => {
+        return ['strong_buy','buy','hold','sell','strong_sell'].reduce((s, k) => s + (recData[recData.length - 1 - i] || {})[k] || 0, 0);
+    });
+
     new Chart(document.getElementById('recChart'), {
         type: 'bar',
         data: {
@@ -278,6 +289,7 @@ function fmtB(v) {
         },
         options: {
             ...chartOpts,
+            layout: { padding: { top: 16 } },
             plugins: {
                 legend: { position: 'right', labels: { boxWidth: 10, padding: 8, font: { size: 10 } } },
                 tooltip: {
@@ -293,7 +305,25 @@ function fmtB(v) {
                 x: { stacked: true, grid: { display: false } },
                 y: { stacked: true, grid: { color: '#21262d' }, ticks: { display: false } },
             },
-        }
+        },
+        plugins: [{
+            id: 'recTotalLabels',
+            afterDraw: function(chart) {
+                var ctx = chart.ctx;
+                var xScale = chart.scales.x;
+                var yScale = chart.scales.y;
+                ctx.save();
+                ctx.fillStyle = '#e1e4e8';
+                ctx.font = 'bold 11px sans-serif';
+                ctx.textAlign = 'center';
+                totals.forEach(function(total, i) {
+                    var x = xScale.getPixelForValue(i);
+                    var y = yScale.getPixelForValue(total);
+                    ctx.fillText(total, x, y - 4);
+                });
+                ctx.restore();
+            }
+        }]
     });
 })();
 {% endif %}
@@ -306,39 +336,45 @@ function fmtB(v) {
     const labels = data.map(e => e.quarter);
 
     new Chart(document.getElementById('epsChart'), {
-        type: 'scatter',
+        type: 'line',
         data: {
             labels: labels,
             datasets: [
                 {
                     label: 'Estimate',
-                    data: data.map((e, i) => e.estimate !== null ? { x: i, y: e.estimate } : null).filter(Boolean),
+                    data: data.map(e => e.estimate),
                     backgroundColor: 'transparent',
-                    borderColor: '#8b949e',
-                    borderWidth: 2,
+                    borderColor: 'transparent',
+                    pointBackgroundColor: 'transparent',
+                    pointBorderColor: '#8b949e',
+                    pointBorderWidth: 2,
                     pointRadius: 6,
                     pointStyle: 'circle',
+                    showLine: false,
                 },
                 {
                     label: 'Actual',
-                    data: data.map((e, i) => e.actual !== null ? { x: i, y: e.actual } : null).filter(Boolean),
+                    data: data.map(e => e.actual),
                     backgroundColor: '#3fb950',
-                    borderColor: '#3fb950',
+                    borderColor: 'transparent',
+                    pointBackgroundColor: '#3fb950',
+                    pointBorderColor: '#3fb950',
                     pointRadius: 7,
                     pointStyle: 'circle',
+                    showLine: false,
                 },
             ]
         },
         options: {
             ...chartOpts,
+            layout: { padding: { bottom: 20 } },
             plugins: {
                 legend: { position: 'top', labels: { boxWidth: 10, padding: 12, font: { size: 10 } } },
                 tooltip: {
                     callbacks: {
-                        title: (items) => labels[items[0].parsed.x] || '',
-                        label: (item) => item.dataset.label + ': ' + item.parsed.y.toFixed(2),
+                        label: (item) => item.dataset.label + ': ' + (item.parsed.y !== null ? item.parsed.y.toFixed(2) : '—'),
                         afterBody: function(items) {
-                            var idx = items[0].parsed.x;
+                            var idx = items[0].dataIndex;
                             var d = data[idx];
                             if (d && d.surprise_pct !== null) {
                                 var beat = d.surprise_pct >= 0;
@@ -350,16 +386,7 @@ function fmtB(v) {
                 }
             },
             scales: {
-                x: {
-                    type: 'linear',
-                    grid: { color: '#21262d' },
-                    ticks: {
-                        callback: (val) => labels[val] || '',
-                        stepSize: 1,
-                    },
-                    min: -0.5,
-                    max: data.length - 0.5,
-                },
+                x: { grid: { color: '#21262d' }, ticks: { font: { size: 9 }, maxRotation: 0 } },
                 y: { grid: { color: '#21262d' } },
             },
         },
@@ -367,12 +394,13 @@ function fmtB(v) {
             id: 'epsAnnotations',
             afterDraw: function(chart) {
                 var ctx = chart.ctx;
-                var xScale = chart.scales.x;
-                var yScale = chart.scales.y;
+                var meta = chart.getDatasetMeta(1); // Actual dataset
                 data.forEach(function(d, i) {
                     if (d.actual !== null && d.surprise_pct !== null) {
-                        var x = xScale.getPixelForValue(i);
-                        var y = yScale.getPixelForValue(d.actual);
+                        var pt = meta.data[i];
+                        if (!pt) return;
+                        var x = pt.x;
+                        var y = pt.y;
                         var beat = d.surprise_pct >= 0;
                         ctx.save();
                         ctx.fillStyle = beat ? '#3fb950' : '#f85149';

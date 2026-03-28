@@ -156,6 +156,11 @@ _ACTION_MAP = {
 def fetch_ticker_detail_live(ticker: str) -> dict:
     try:
         t = yf.Ticker(ticker)
+        info = t.info
+
+        # Daily price change
+        price_change = _fmt(info.get("regularMarketChange"))
+        price_change_pct = _fmt(info.get("regularMarketChangePercent"))
 
         # Analyst history (upgrades/downgrades)
         analyst_history = []
@@ -277,6 +282,8 @@ def fetch_ticker_detail_live(ticker: str) -> dict:
             "price_targets": price_targets,
             "earnings_history": earnings_history,
             "revenue_earnings": revenue_earnings,
+            "price_change": price_change,
+            "price_change_pct": price_change_pct,
         }
 
     except Exception as e:
@@ -288,6 +295,8 @@ def fetch_ticker_detail_live(ticker: str) -> dict:
             "price_targets": {},
             "earnings_history": [],
             "revenue_earnings": {"annual": [], "quarterly": []},
+            "price_change": "",
+            "price_change_pct": "",
         }
 
 

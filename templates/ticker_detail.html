@@ -548,10 +548,10 @@ function fmtB(v) {
                     if (dateSet[ds] !== undefined) { idx = dateSet[ds]; break; }
                 }
             }
-            if (idx !== undefined) {
+            if (idx !== undefined && a.price_target) {
                 ratingPts.push({
                     x: labels[idx],
-                    y: closes[idx],
+                    y: a.price_target,
                     firm: a.firm,
                     grade: a.to_grade,
                     action: a.action,

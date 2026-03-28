@@ -1,0 +1,49 @@
+# .github/workflows/update_watchlist.yml
+#
+# Ten plik mówi GitHub kiedy i jak uruchamiać skrypt.
+# GitHub czyta ten plik automatycznie — wystarczy że jest w tym miejscu.
+
+name: Update Watchlist
+
+on:
+  # ── Uruchom codziennie o 08:00 (UTC+2 = wpisz 06:00 UTC) ──
+  schedule:
+    - cron: '0 6 * * 1-5'   # pon-pt o 06:00 UTC = 08:00 PL (czas letni)
+    #        │ │ │ │ └── dzień tygodnia (1-5 = pon-pt, * = codziennie)
+    #        │ │ │ └──── miesiąc (*)
+    #        │ │ └────── dzień miesiąca (*)
+    #        │ └──────── godzina UTC
+    #        └────────── minuta
+
+  # ── Możesz też uruchomić ręcznie z zakładki Actions na GitHub ──
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest   # GitHub daje darmową maszynę Ubuntu
+
+    steps:
+      # 1. Pobierz kod z repozytorium na maszynę wirtualną
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # 2. Zainstaluj Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 3. Zainstaluj biblioteki (z pliku requirements.txt)
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # 4. Utwórz plik service_account.json z zaszyfrowanego Secretu
+      #    (nigdy nie wrzucaj tego pliku bezpośrednio do repo!)
+      - name: Create service account file
+        run: echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > service_account.json
+
+      # 5. Uruchom skrypt
+      - name: Run watchlist updater
+        run: python watchlist_updater.py --now
+        env:
+          SHEET_ID: ${{ secrets.SHEET_ID }}  # ID arkusza jako Secret

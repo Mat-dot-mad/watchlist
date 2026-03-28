@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="toolbar">
+    <div class="toolbar-left">
+        <form method="POST" action="{{ url_for('add_ticker') }}" class="add-form">
+            <input type="text" name="symbol" placeholder="e.g. AAPL, CDR.WA" required>
+            <button type="submit" class="btn btn-primary btn-small">Add</button>
+        </form>
+    </div>
+    <div class="toolbar-right">
+        <span class="last-updated">
+            {% if last_updated %}Updated: {{ last_updated }}{% else %}No data yet{% endif %}
+        </span>
+        <form method="POST" action="{{ url_for('refresh') }}" class="inline">
+            <button type="submit" class="btn btn-primary btn-small" {% if refreshing %}disabled{% endif %}>
+                {% if refreshing %}
+                    <span class="spinner"></span> Refreshing...
+                {% else %}
+                    Refresh
+                {% endif %}
+            </button>
+        </form>
+    </div>
+</div>
+
+{% if stocks %}
+<div class="table-wrapper" {% if refreshing %}data-refreshing="true"{% endif %}>
+    <table>
+        <thead>
+            <tr>
+                <th>Ticker</th>
+                <th>Price</th>
+                <th>Target (mean)</th>
+                <th>Target (low)</th>
+                <th>Target (high)</th>
+                <th>Upside %</th>
+                <th># Analysts</th>
+                <th>Strong Buy</th>
+                <th>Buy</th>
+                <th>Hold</th>
+                <th>Sell</th>
+                <th>Strong Sell</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in stocks %}
+            <tr>
+                <td class="ticker">{{ row.symbol }}</td>
+                <td>{{ row.current_price if row.current_price is not none else '—' }}</td>
+                <td>{{ row.target_mean if row.target_mean is not none else '—' }}</td>
+                <td>{{ row.target_low if row.target_low is not none else '—' }}</td>
+                <td>{{ row.target_high if row.target_high is not none else '—' }}</td>
+                <td class="{% if row.upside is not none %}{{ 'positive' if row.upside > 0 else 'negative' }}{% endif %}">
+                    {{ (row.upside ~ '%') if row.upside is not none else '—' }}
+                </td>
+                <td>{{ row.n_analysts if row.n_analysts is not none else '—' }}</td>
+                <td>{{ row.strong_buy if row.strong_buy is not none else '—' }}</td>
+                <td>{{ row.buy if row.buy is not none else '—' }}</td>
+                <td>{{ row.hold if row.hold is not none else '—' }}</td>
+                <td>{{ row.sell if row.sell is not none else '—' }}</td>
+                <td>{{ row.strong_sell if row.strong_sell is not none else '—' }}</td>
+                <td>
+                    {% if row.status == 'OK' %}
+                        <span class="badge badge-ok">OK</span>
+                    {% elif row.status %}
+                        <span class="badge badge-err" title="{{ row.status }}">ERR</span>
+                    {% else %}
+                        <span class="badge badge-pending">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <form method="POST" action="{{ url_for('remove_ticker', symbol=row.symbol) }}" class="inline"
+                          onsubmit="return confirm('Remove {{ row.symbol }}?')">
+                        <button type="submit" class="btn btn-danger btn-small">&times;</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="empty">No tickers yet. Add one above to get started.</p>
+{% endif %}
+
+<script>
+(function() {
+    var wrapper = document.querySelector('[data-refreshing]');
+    if (!wrapper) return;
+    var interval = setInterval(function() {
+        fetch('/api/status')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.refreshing) {
+                    clearInterval(interval);
+                    location.reload();
+                }
+            });
+    }, 5000);
+})();
+</script>
+{% endblock %}

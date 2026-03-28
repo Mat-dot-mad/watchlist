@@ -1,4 +1,6 @@
 yfinance
 gspread
 google-auth
-schedule
+Flask
+gunicorn
+APScheduler

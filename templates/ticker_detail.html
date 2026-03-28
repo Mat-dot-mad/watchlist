@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="detail-header">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-small">&larr; Back</a>
+    <div class="detail-title">
+        <h2>{{ detail.long_name or symbol }}</h2>
+        <span class="ticker-symbol">{{ symbol }}</span>
+        {% if detail.sector %}
+        <span class="sector-badge">{{ detail.sector }}</span>
+        {% endif %}
+    </div>
+</div>
+
+{# ── Top Row: Price + Latest Rating ── #}
+<div class="detail-top-row">
+    <div class="price-card">
+        <div class="price-large">{{ detail.current_price|fmt_val }}</div>
+        {% if detail.upside is not none %}
+        <div class="price-upside {{ 'positive' if detail.upside > 0 else 'negative' }}">
+            {{ detail.upside }}% to target
+        </div>
+        {% endif %}
+    </div>
+
+    {% if live.analyst_history %}
+    {% set latest = live.analyst_history[0] %}
+    <div class="latest-rating-card">
+        <div class="latest-rating-header">Latest Rating</div>
+        <div class="latest-rating-body">
+            <div class="latest-rating-row">
+                <span class="label">Date</span>
+                <span>{{ latest.date }}</span>
+            </div>
+            <div class="latest-rating-row">
+                <span class="label">Analyst</span>
+                <span>{{ latest.firm }}</span>
+            </div>
+            <div class="latest-rating-row">
+                <span class="label">Rating</span>
+                <span class="rating-badge {{ latest.to_grade|rating_class }}">{{ latest.to_grade }}</span>
+            </div>
+            {% if latest.price_target %}
+            <div class="latest-rating-row">
+                <span class="label">Price Target</span>
+                <span>
+                    {% if latest.prior_target %}
+                        {{ latest.prior_target }} &rarr; {{ latest.price_target }}
+                        {% if latest.price_action %}
+                        <span class="action-badge action-{{ latest.price_action|lower }}">{{ latest.price_action }}</span>
+                        {% endif %}
+                    {% else %}
+                        {{ latest.price_target }}
+                    {% endif %}
+                </span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{# ── 1-Year Price Chart ── #}
+{% if live.price_history %}
+<div class="chart-card chart-card-full">
+    <h3>Price History (1Y)</h3>
+    <canvas id="priceChart"></canvas>
+</div>
+{% endif %}
+
+{# ── Price vs Target Range ── #}
+{% if live.price_targets and live.price_targets.low and live.price_targets.high %}
+{% set pt = live.price_targets %}
+<div class="price-range-card">
+    <h3>Analyst Price Targets</h3>
+    {% set low = pt.low %}
+    {% set high = pt.high %}
+    {% set price = pt.current or detail.current_price %}
+    {% set mean = pt.mean or price %}
+    {% set range_min = [low, price]|min * 0.95 %}
+    {% set range_max = high * 1.05 %}
+    {% set span = range_max - range_min or 1 %}
+    <div class="price-range">
+        <div class="price-range-bar">
+            <div class="price-range-target" style="left: {{ ((low - range_min) / span * 100)|round(1) }}%; width: {{ ((high - low) / span * 100)|round(1) }}%;">
+            </div>
+            <div class="price-range-marker price-marker" style="left: {{ ((price - range_min) / span * 100)|round(1) }}%;" title="Current: {{ price }}">
+                <span class="marker-label">{{ price|fmt_val }}</span>
+                <span class="marker-sublabel">Current</span>
+            </div>
+            <div class="price-range-marker target-marker" style="left: {{ ((mean - range_min) / span * 100)|round(1) }}%;" title="Target: {{ mean }}">
+                <span class="marker-label marker-label-target">{{ mean|fmt_val }}</span>
+                <span class="marker-sublabel marker-sublabel-target">Average</span>
+            </div>
+        </div>
+        <div class="price-range-labels">
+            <span>{{ low|fmt_val }}<br><small>Low</small></span>
+            <span>{{ high|fmt_val }}<br><small>High</small></span>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# ── Analyst Recommendations Over Time ── #}
+{% if live.recommendations_monthly %}
+<div class="chart-card">
+    <h3>Analyst Recommendations</h3>
+    <canvas id="recChart"></canvas>
+</div>
+{% endif %}
+
+{# ── Metrics Grid ── #}
+<div class="metrics-grid">
+    <div class="metric-card">
+        <span class="metric-label">Market Cap</span>
+        <span class="metric-value">{{ detail.market_cap|fmt_large }}</span>
+    </div>
+    <div class="metric-card">
+        <span class="metric-label">P/E (Trailing)</span>
+        <span class="metric-value">{{ detail.trailing_pe|fmt_val }}</span>
+    </div>
+    <div class="metric-card">
+        <span class="metric-label">P/E (Forward)</span>
+        <span class="metric-value">{{ detail.forward_pe|fmt_val }}</span>
+    </div>
+    <div class="metric-card">
+        <span class="metric-label">P/B</span>
+        <span class="metric-value">{{ detail.price_to_book|fmt_val }}</span>
+    </div>
+    <div class="metric-card">
+        <span class="metric-label">Beta</span>
+        <span class="metric-value">{{ detail.beta|fmt_val }}</span>
+    </div>
+    <div class="metric-card">
+        <span class="metric-label">Dividend Yield</span>
+        <span class="metric-value">{% if detail.dividend_yield %}{{ "%.2f"|format(detail.dividend_yield * 100) }}%{% else %}—{% endif %}</span>
+    </div>
+    <div class="metric-card">
+        <span class="metric-label">52W High</span>
+        <span class="metric-value">{{ detail.fifty_two_week_high|fmt_val }}</span>
+    </div>
+    <div class="metric-card">
+        <span class="metric-label">52W Low</span>
+        <span class="metric-value">{{ detail.fifty_two_week_low|fmt_val }}</span>
+    </div>
+    <div class="metric-card">
+        <span class="metric-label">50D Avg</span>
+        <span class="metric-value">{{ detail.fifty_day_avg|fmt_val }}</span>
+    </div>
+    <div class="metric-card">
+        <span class="metric-label">200D Avg</span>
+        <span class="metric-value">{{ detail.two_hundred_day_avg|fmt_val }}</span>
+    </div>
+</div>
+
+{# ── Analyst Actions Table ── #}
+{% if live.analyst_history %}
+<div class="analyst-section">
+    <h3>Recent Analyst Actions</h3>
+    <div class="table-wrapper">
+        <table class="analyst-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Firm</th>
+                    <th>Rating</th>
+                    <th>Price Target</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in live.analyst_history[:20] %}
+                <tr>
+                    <td>{{ a.date }}</td>
+                    <td class="firm-name">{{ a.firm }}</td>
+                    <td>
+                        <span class="rating-badge {{ a.to_grade|rating_class }}">{{ a.to_grade }}</span>
+                        {% if a.from_grade and a.from_grade != a.to_grade %}
+                        <span class="from-grade">from {{ a.from_grade }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if a.price_target %}
+                            {{ a.price_target }}
+                            {% if a.prior_target and a.prior_target != a.price_target %}
+                            <span class="from-grade">from {{ a.prior_target }}</span>
+                            {% endif %}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if a.price_action %}
+                        <span class="action-badge action-{{ a.price_action|lower }}">{{ a.price_action }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{# ── Charts JS ── #}
+<script>
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = '#21262d';
+
+{% if live.price_history %}
+(function() {
+    const priceData = {{ live.price_history|tojson }};
+    const labels = priceData.map(p => p.date);
+    const closes = priceData.map(p => p.close);
+
+    // Calculate moving averages
+    function ma(data, period) {
+        return data.map((_, i) => {
+            if (i < period - 1) return null;
+            const slice = data.slice(i - period + 1, i + 1);
+            return slice.reduce((a, b) => a + b, 0) / period;
+        });
+    }
+
+    new Chart(document.getElementById('priceChart'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Price',
+                    data: closes,
+                    borderColor: '#58a6ff',
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    tension: 0,
+                    fill: false,
+                },
+                {
+                    label: '50D MA',
+                    data: ma(closes, 50),
+                    borderColor: '#d29922',
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    borderDash: [4, 2],
+                    tension: 0.3,
+                },
+                {
+                    label: '200D MA',
+                    data: ma(closes, 200),
+                    borderColor: '#f85149',
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    borderDash: [4, 2],
+                    tension: 0.3,
+                },
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 12, padding: 16 } },
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } },
+                y: { grid: { color: '#21262d' } },
+            },
+        }
+    });
+})();
+{% endif %}
+
+{% if live.recommendations_monthly %}
+(function() {
+    const recData = {{ live.recommendations_monthly|tojson }};
+    const labels = recData.map(r => r.period).reverse();
+    const getData = (key) => recData.map(r => r[key]).reverse();
+
+    new Chart(document.getElementById('recChart'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Strong Buy', data: getData('strong_buy'), backgroundColor: '#238636' },
+                { label: 'Buy', data: getData('buy'), backgroundColor: '#3fb950' },
+                { label: 'Hold', data: getData('hold'), backgroundColor: '#d29922' },
+                { label: 'Sell', data: getData('sell'), backgroundColor: '#f0883e' },
+                { label: 'Strong Sell', data: getData('strong_sell'), backgroundColor: '#f85149' },
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 12, padding: 16 } },
+            },
+            scales: {
+                x: { stacked: true, grid: { display: false } },
+                y: { stacked: true, grid: { color: '#21262d' } },
+            },
+        }
+    });
+})();
+{% endif %}
+</script>
+{% endblock %}

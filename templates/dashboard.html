@@ -23,6 +23,43 @@
     </div>
 </div>
 
+{# ── Recent Analyst Activity ── #}
+{% set all_actions = [] %}
+{% for sym, actions in trends.items() %}
+    {% for a in actions[:3] %}
+        {% if all_actions.append(a) %}{% endif %}
+    {% endfor %}
+{% endfor %}
+
+{% if all_actions %}
+<div class="trend-card">
+    <h3 class="trend-title">Recent Analyst Activity</h3>
+    <div class="trend-items">
+        {% for a in all_actions|sort(attribute='action_date', reverse=true) %}
+        {% if loop.index <= 8 %}
+        <a href="{{ url_for('ticker_detail', symbol=a.symbol) }}" class="trend-action-chip">
+            <span class="trend-chip-symbol">{{ a.symbol }}</span>
+            <span class="trend-chip-firm">{{ a.firm }}</span>
+            {% if a.to_grade %}
+            <span class="rating-badge-sm {{ a.to_grade|rating_class }}">{{ a.to_grade }}</span>
+            {% endif %}
+            {% if a.price_target %}
+                {% if a.prior_target and a.price_target > a.prior_target %}
+                <span class="trend-chip-target positive">${{ a.price_target|int }}</span>
+                {% elif a.prior_target and a.price_target < a.prior_target %}
+                <span class="trend-chip-target negative">${{ a.price_target|int }}</span>
+                {% else %}
+                <span class="trend-chip-target">${{ a.price_target|int }}</span>
+                {% endif %}
+            {% endif %}
+        </a>
+        {% endif %}
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{# ── Stock Table ── #}
 {% if stocks %}
 <div class="table-wrapper" {% if refreshing %}data-refreshing="true"{% endif %}>
     <table>
@@ -30,10 +67,10 @@
             <tr>
                 <th>Ticker</th>
                 <th>Price</th>
-                <th>Target (mean)</th>
-                <th>Target (low)</th>
-                <th>Target (high)</th>
+                <th>Target</th>
+                <th>Sentiment</th>
                 <th>Upside %</th>
+                <th>P/E</th>
                 <th># Analysts</th>
                 <th>Strong Buy</th>
                 <th>Buy</th>
@@ -47,14 +84,19 @@
         <tbody>
             {% for row in stocks %}
             <tr>
-                <td class="ticker">{{ row.symbol }}</td>
-                <td>{{ row.current_price if row.current_price is not none else '—' }}</td>
-                <td>{{ row.target_mean if row.target_mean is not none else '—' }}</td>
-                <td>{{ row.target_low if row.target_low is not none else '—' }}</td>
-                <td>{{ row.target_high if row.target_high is not none else '—' }}</td>
+                <td class="ticker">
+                    <a href="{{ url_for('ticker_detail', symbol=row.symbol) }}">{{ row.symbol }}</a>
+                    {% if row.sector %}
+                    <span class="sector-label">{{ row.sector }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ row.current_price|fmt_val if row.current_price else '—' }}</td>
+                <td>{{ row.target_mean|fmt_val if row.target_mean else '—' }}</td>
+                <td>{{ rec_cache.get(row.symbol, [])|sentiment_bar }}</td>
                 <td class="{% if row.upside is not none %}{{ 'positive' if row.upside > 0 else 'negative' }}{% endif %}">
                     {{ (row.upside ~ '%') if row.upside is not none else '—' }}
                 </td>
+                <td>{{ row.trailing_pe|fmt_val if row.trailing_pe else '—' }}</td>
                 <td>{{ row.n_analysts if row.n_analysts is not none else '—' }}</td>
                 <td>{{ row.strong_buy if row.strong_buy is not none else '—' }}</td>
                 <td>{{ row.buy if row.buy is not none else '—' }}</td>

@@ -6,9 +6,10 @@ from functools import wraps
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
+from markupsafe import Markup
 
 import db
-from fetcher import fetch_all_tickers
+from fetcher import fetch_all_tickers, fetch_ticker_data, fetch_ticker_detail_live
 
 log = logging.getLogger(__name__)
 
@@ -24,6 +25,17 @@ def login_required(f):
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated
+
+
+def _save_ticker_data(data):
+    symbol = data["ticker"]
+    db.save_stock_data(symbol, data)
+    if data.get("sector") or data.get("long_name"):
+        db.update_ticker_metadata(symbol, data.get("sector"), data.get("long_name"))
+    if data.get("recent_actions"):
+        db.save_recent_analyst_actions(symbol, data["recent_actions"])
+    if data.get("rec_summary"):
+        db.save_recommendations_cache(symbol, data["rec_summary"])
 
 
 def refresh_all_data():
@@ -43,7 +55,7 @@ def refresh_all_data():
         results = fetch_all_tickers(tickers)
 
         for data in results:
-            db.save_stock_data(data["ticker"], data)
+            _save_ticker_data(data)
 
         # Optional Sheets sync
         try:
@@ -88,6 +100,78 @@ def create_app():
     scheduler.add_job(refresh_all_data, "cron", hour=refresh_hour, minute=0)
     scheduler.start()
 
+    # Template filters
+    @app.template_filter('sentiment_bar')
+    def sentiment_bar(rec_list, width=80, height=14):
+        if not rec_list:
+            return Markup('<span class="no-data">—</span>')
+        # Use the first (current month) entry
+        r = rec_list[0] if isinstance(rec_list, list) else rec_list
+        sb = r.get("strong_buy", 0) or 0
+        b = r.get("buy", 0) or 0
+        h = r.get("hold", 0) or 0
+        s = r.get("sell", 0) or 0
+        ss = r.get("strong_sell", 0) or 0
+        total = sb + b + h + s + ss
+        if total == 0:
+            return Markup('<span class="no-data">—</span>')
+        buy_w = round((sb + b) / total * width, 1)
+        hold_w = round(h / total * width, 1)
+        sell_w = round((s + ss) / total * width, 1)
+        return Markup(
+            f'<svg width="{width}" height="{height}" class="sentiment-bar">'
+            f'<rect x="0" y="0" width="{buy_w}" height="{height}" rx="2" fill="#238636"/>'
+            f'<rect x="{buy_w}" y="0" width="{hold_w}" height="{height}" fill="#d29922"/>'
+            f'<rect x="{buy_w + hold_w}" y="0" width="{sell_w}" height="{height}" rx="2" fill="#da3633"/>'
+            f'</svg>'
+        )
+
+    @app.template_filter('fmt_large')
+    def fmt_large(value):
+        if not value:
+            return '—'
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            return '—'
+        if v >= 1e12:
+            return f"${v / 1e12:.1f}T"
+        if v >= 1e9:
+            return f"${v / 1e9:.1f}B"
+        if v >= 1e6:
+            return f"${v / 1e6:.1f}M"
+        return f"${v:,.0f}"
+
+    @app.template_filter('fmt_pct')
+    def fmt_pct(value):
+        if not value and value != 0:
+            return '—'
+        try:
+            return f"{float(value) * 100:.2f}%"
+        except (TypeError, ValueError):
+            return '—'
+
+    @app.template_filter('fmt_val')
+    def fmt_val(value):
+        if not value and value != 0:
+            return '—'
+        try:
+            return f"{float(value):.2f}"
+        except (TypeError, ValueError):
+            return '—'
+
+    @app.template_filter('rating_class')
+    def rating_class(grade):
+        if not grade:
+            return 'rating-neutral'
+        g = grade.lower()
+        if any(w in g for w in ['buy', 'outperform', 'overweight', 'positive', 'accumulate']):
+            return 'rating-buy'
+        if any(w in g for w in ['sell', 'underperform', 'underweight', 'negative', 'reduce']):
+            return 'rating-sell'
+        return 'rating-hold'
+
+    # Routes
     @app.route("/login", methods=["GET", "POST"])
     def login():
         password = os.environ.get("DASHBOARD_PASSWORD")
@@ -113,7 +197,22 @@ def create_app():
     def dashboard():
         data = db.get_latest_data()
         last_updated = db.get_last_updated()
-        return render_template("dashboard.html", stocks=data, last_updated=last_updated, refreshing=_refreshing)
+        trends = db.get_dashboard_trends()
+        rec_cache = db.get_all_recommendations_cache()
+        return render_template("dashboard.html",
+                               stocks=data, last_updated=last_updated, refreshing=_refreshing,
+                               trends=trends, rec_cache=rec_cache)
+
+    @app.route("/ticker/<symbol>")
+    @login_required
+    def ticker_detail(symbol):
+        symbol = symbol.upper()
+        detail = db.get_ticker_detail(symbol)
+        if not detail:
+            flash(f"Ticker {symbol} not found.", "error")
+            return redirect(url_for("dashboard"))
+        live = fetch_ticker_detail_live(symbol)
+        return render_template("ticker_detail.html", detail=detail, live=live, symbol=symbol)
 
     @app.route("/refresh", methods=["POST"])
     @login_required
@@ -132,6 +231,9 @@ def create_app():
         symbol = request.form.get("symbol", "").strip().upper()
         if symbol:
             if db.add_ticker(symbol):
+                # Immediately fetch data for the new ticker
+                data = fetch_ticker_data(symbol)
+                _save_ticker_data(data)
                 flash(f"Added {symbol}.", "success")
             else:
                 flash(f"{symbol} already exists.", "info")

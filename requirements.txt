@@ -2,5 +2,6 @@ yfinance
 gspread
 google-auth
 Flask
+requests
 gunicorn
 APScheduler

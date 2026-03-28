@@ -251,6 +251,33 @@ def create_app():
     def status():
         return jsonify(refreshing=_refreshing, last_updated=db.get_last_updated())
 
+    @app.route("/api/search")
+    @login_required
+    def search_tickers():
+        q = request.args.get("q", "").strip()
+        if len(q) < 1:
+            return jsonify([])
+        try:
+            import requests
+            resp = requests.get(
+                "https://query2.finance.yahoo.com/v1/finance/search",
+                params={"q": q, "quotesCount": 8, "newsCount": 0, "listsCount": 0},
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=3,
+            )
+            data = resp.json()
+            results = []
+            for item in data.get("quotes", []):
+                if item.get("quoteType") in ("EQUITY", "ETF", "MUTUALFUND"):
+                    results.append({
+                        "symbol": item.get("symbol", ""),
+                        "name": item.get("shortname") or item.get("longname", ""),
+                        "exchange": item.get("exchDisp", ""),
+                    })
+            return jsonify(results)
+        except Exception:
+            return jsonify([])
+
     return app
 
 

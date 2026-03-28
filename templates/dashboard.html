@@ -3,7 +3,10 @@
 <div class="toolbar">
     <div class="toolbar-left">
         <form method="POST" action="{{ url_for('add_ticker') }}" class="add-form">
-            <input type="text" name="symbol" placeholder="e.g. AAPL, CDR.WA" required>
+            <div class="autocomplete-wrapper">
+                <input type="text" name="symbol" placeholder="Search ticker..." autocomplete="off" required>
+                <div class="autocomplete-dropdown"></div>
+            </div>
             <button type="submit" class="btn btn-primary btn-small">Add</button>
         </form>
     </div>
@@ -141,6 +144,64 @@
                 }
             });
     }, 5000);
+})();
+
+(function() {
+    var input = document.querySelector('.autocomplete-wrapper input');
+    var dropdown = document.querySelector('.autocomplete-dropdown');
+    var timer = null;
+    var selectedIdx = -1;
+
+    input.addEventListener('input', function() {
+        clearTimeout(timer);
+        var q = input.value.trim();
+        if (q.length < 1) { dropdown.innerHTML = ''; dropdown.style.display = 'none'; return; }
+        timer = setTimeout(function() {
+            fetch('/api/search?q=' + encodeURIComponent(q))
+                .then(function(r) { return r.json(); })
+                .then(function(items) {
+                    selectedIdx = -1;
+                    if (!items.length) { dropdown.innerHTML = ''; dropdown.style.display = 'none'; return; }
+                    dropdown.innerHTML = items.map(function(it, i) {
+                        return '<div class="ac-item" data-symbol="' + it.symbol + '" data-idx="' + i + '">'
+                            + '<span class="ac-symbol">' + it.symbol + '</span>'
+                            + '<span class="ac-name">' + it.name + '</span>'
+                            + '<span class="ac-exchange">' + it.exchange + '</span>'
+                            + '</div>';
+                    }).join('');
+                    dropdown.style.display = 'block';
+                });
+        }, 250);
+    });
+
+    input.addEventListener('keydown', function(e) {
+        var items = dropdown.querySelectorAll('.ac-item');
+        if (!items.length) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); selectedIdx = Math.min(selectedIdx + 1, items.length - 1); highlight(items); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); selectedIdx = Math.max(selectedIdx - 1, 0); highlight(items); }
+        else if (e.key === 'Enter' && selectedIdx >= 0) { e.preventDefault(); pick(items[selectedIdx].dataset.symbol); }
+        else if (e.key === 'Escape') { dropdown.style.display = 'none'; }
+    });
+
+    dropdown.addEventListener('click', function(e) {
+        var item = e.target.closest('.ac-item');
+        if (item) pick(item.dataset.symbol);
+    });
+
+    function highlight(items) {
+        items.forEach(function(el, i) { el.classList.toggle('ac-active', i === selectedIdx); });
+    }
+
+    function pick(symbol) {
+        input.value = symbol;
+        dropdown.innerHTML = '';
+        dropdown.style.display = 'none';
+        input.closest('form').submit();
+    }
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.autocomplete-wrapper')) { dropdown.style.display = 'none'; }
+    });
 })();
 </script>
 {% endblock %}

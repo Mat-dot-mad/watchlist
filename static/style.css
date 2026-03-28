@@ -104,6 +104,42 @@ main {
     box-shadow: 0 0 0 2px rgba(31, 111, 235, 0.3);
 }
 
+/* Autocomplete */
+.autocomplete-wrapper { position: relative; }
+
+.autocomplete-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    min-width: 280px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    margin-top: 4px;
+    z-index: 100;
+    max-height: 320px;
+    overflow-y: auto;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.ac-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    border-bottom: 1px solid #21262d;
+}
+
+.ac-item:last-child { border-bottom: none; }
+.ac-item:hover, .ac-item.ac-active { background: #21262d; }
+.ac-symbol { font-weight: 700; color: #58a6ff; min-width: 5rem; }
+.ac-name { color: #e1e4e8; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ac-exchange { color: #484f58; font-size: 0.7rem; }
+
 .inline { display: inline; }
 
 /* Trend / Recent Activity */

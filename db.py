@@ -129,6 +129,21 @@ def list_tickers(db_path=None):
         conn.close()
 
 
+def export_tickers_to_file(filepath="tickers.txt", db_path=None):
+    tickers = list_tickers(db_path)
+    if tickers:
+        with open(filepath, "w") as f:
+            f.write("\n".join(tickers) + "\n")
+
+
+def import_tickers_from_file(filepath="tickers.txt"):
+    try:
+        with open(filepath) as f:
+            return [line.strip().upper() for line in f if line.strip()]
+    except FileNotFoundError:
+        return []
+
+
 def update_ticker_metadata(symbol, sector, long_name, currency=None, db_path=None):
     conn = get_db(db_path)
     try:

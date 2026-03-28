@@ -84,8 +84,10 @@ def create_app():
     # Initialize database
     db.init_db()
 
-    # Seed from Google Sheets if DB is empty
+    # Seed tickers if DB is empty
     if not db.list_tickers():
+        seeded = False
+        # Try Google Sheets first
         try:
             from sheets_sync import import_tickers_from_sheet, is_sheets_configured
             if is_sheets_configured():
@@ -93,8 +95,16 @@ def create_app():
                 for t in tickers:
                     db.add_ticker(t)
                 log.info(f"Imported {len(tickers)} tickers from Google Sheets.")
+                seeded = True
         except Exception as e:
             log.warning(f"Could not import from Sheets: {e}")
+        # Fallback: seed from tickers.txt
+        if not seeded:
+            file_tickers = db.import_tickers_from_file()
+            if file_tickers:
+                for t in file_tickers:
+                    db.add_ticker(t)
+                log.info(f"Imported {len(file_tickers)} tickers from tickers.txt.")
 
     # Background scheduler
     scheduler = BackgroundScheduler()
@@ -248,6 +258,7 @@ def create_app():
                 # Immediately fetch data for the new ticker
                 data = fetch_ticker_data(symbol)
                 _save_ticker_data(data)
+                db.export_tickers_to_file()
                 flash(f"Added {symbol}.", "success")
             else:
                 flash(f"{symbol} already exists.", "info")
@@ -257,6 +268,7 @@ def create_app():
     @login_required
     def remove_ticker(symbol):
         db.remove_ticker(symbol)
+        db.export_tickers_to_file()
         flash(f"Removed {symbol}.", "success")
         return redirect(url_for("dashboard"))
 

@@ -147,6 +147,12 @@ def fetch_ticker_data(ticker: str) -> dict:
         }
 
 
+_ACTION_MAP = {
+    "main": "Maintains", "up": "Upgrade", "down": "Downgrade",
+    "init": "Initiates", "reit": "Reiterates",
+}
+
+
 def fetch_ticker_detail_live(ticker: str) -> dict:
     try:
         t = yf.Ticker(ticker)
@@ -163,24 +169,15 @@ def fetch_ticker_detail_live(ticker: str) -> dict:
                         action_date = str(date_idx)[:10]
                     price_target = row.get("currentPriceTarget")
                     prior_target = row.get("priorPriceTarget")
-                    # Determine price action
-                    price_action = ""
-                    if price_target and prior_target:
-                        if price_target > prior_target:
-                            price_action = "Raises"
-                        elif price_target < prior_target:
-                            price_action = "Lowers"
-                        else:
-                            price_action = "Maintains"
-                    elif price_target:
-                        price_action = "Sets"
+                    raw_action = row.get("Action", "")
+                    price_action = row.get("priceTargetAction", "")
                     analyst_history.append({
                         "date": action_date,
                         "firm": row.get("Firm", ""),
                         "to_grade": row.get("ToGrade", ""),
                         "from_grade": row.get("FromGrade", ""),
-                        "action": row.get("Action", ""),
-                        "price_action": price_action,
+                        "action": _ACTION_MAP.get(raw_action, raw_action),
+                        "price_action": price_action or "",
                         "price_target": round(float(price_target), 2) if price_target else None,
                         "prior_target": round(float(prior_target), 2) if prior_target else None,
                     })

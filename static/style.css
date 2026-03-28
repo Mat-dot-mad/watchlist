@@ -292,6 +292,7 @@ tr:hover td { background: #161b22; }
 .action-lowers { background: rgba(248, 81, 73, 0.15); color: #f85149; }
 .action-maintains { background: rgba(139, 148, 158, 0.15); color: #8b949e; }
 .action-sets { background: rgba(88, 166, 255, 0.15); color: #58a6ff; }
+.action-announces { background: rgba(88, 166, 255, 0.15); color: #58a6ff; }
 
 .from-grade {
     font-size: 0.65rem;

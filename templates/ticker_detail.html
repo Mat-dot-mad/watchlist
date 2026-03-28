@@ -163,7 +163,7 @@
             <button class="period-btn active" data-period="1Y">1Y</button>
         </div>
     </div>
-    <div style="height:220px"><canvas id="priceChart"></canvas></div>
+    <div style="height:330px"><canvas id="priceChart"></canvas></div>
 </div>
 {% endif %}
 
@@ -578,12 +578,25 @@ function fmtB(v) {
                         type: 'scatter',
                         pointRadius: 5,
                         pointHoverRadius: 8,
-                        pointBackgroundColor: '#d29922',
-                        pointBorderColor: '#d29922',
+                        pointBackgroundColor: ratingPts.map(function(r) {
+                            var pa = (r.priceAction || '').toLowerCase();
+                            if (pa === 'raises') return '#3fb950';
+                            if (pa === 'lowers') return '#f85149';
+                            if (pa === 'maintains') return '#8b949e';
+                            if (pa === 'announces') return '#58a6ff';
+                            return '#d29922';
+                        }),
+                        pointBorderColor: ratingPts.map(function(r) {
+                            var pa = (r.priceAction || '').toLowerCase();
+                            if (pa === 'raises') return '#3fb950';
+                            if (pa === 'lowers') return '#f85149';
+                            if (pa === 'maintains') return '#8b949e';
+                            if (pa === 'announces') return '#58a6ff';
+                            return '#d29922';
+                        }),
                         pointStyle: 'circle',
                         showLine: false,
                         order: 1,
-                        _ratingData: ratingPts,
                     },
                 ]
             },

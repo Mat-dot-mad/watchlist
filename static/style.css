@@ -213,6 +213,15 @@ th {
     letter-spacing: 0.03em;
 }
 
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: #e1e4e8; }
+th.sortable::after { content: ''; margin-left: 4px; }
+th.sort-asc::after { content: ' ▲'; font-size: 0.55rem; }
+th.sort-desc::after { content: ' ▼'; font-size: 0.55rem; }
+
+.sparkline-cell { padding: 0.25rem 0.5rem; }
+.sparkline { display: block; }
+
 td {
     padding: 0.5rem 0.75rem;
     border-bottom: 1px solid #21262d;

@@ -88,6 +88,15 @@ def fetch_ticker_data(ticker: str) -> dict:
         except Exception:
             pass
 
+        # 30-day sparkline
+        sparkline = []
+        try:
+            hist = t.history(period="1mo")
+            if hist is not None and not hist.empty:
+                sparkline = [round(float(row["Close"]), 2) for _, row in hist.iterrows()]
+        except Exception:
+            pass
+
         return {
             "ticker": ticker,
             "current_price": _fmt(current_price),
@@ -113,10 +122,12 @@ def fetch_ticker_data(ticker: str) -> dict:
             "fifty_two_week_low": _fmt(info.get("fiftyTwoWeekLow")),
             "beta": _fmt(info.get("beta")),
             "dividend_yield": info.get("dividendYield") or "",
+            "currency": info.get("currency") or "USD",
             "sector": info.get("sector") or "",
             "long_name": info.get("longName") or info.get("shortName") or "",
             "recent_actions": recent_actions,
             "rec_summary": rec_summary,
+            "sparkline": sparkline,
         }
 
     except Exception as e:
@@ -131,8 +142,8 @@ def fetch_ticker_data(ticker: str) -> dict:
             "market_cap": "", "trailing_pe": "", "forward_pe": "",
             "price_to_book": "", "fifty_day_avg": "", "two_hundred_day_avg": "",
             "fifty_two_week_high": "", "fifty_two_week_low": "",
-            "beta": "", "dividend_yield": "", "sector": "", "long_name": "",
-            "recent_actions": [], "rec_summary": [],
+            "beta": "", "dividend_yield": "", "currency": "", "sector": "", "long_name": "",
+            "recent_actions": [], "rec_summary": [], "sparkline": [],
         }
 
 

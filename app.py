@@ -30,12 +30,14 @@ def login_required(f):
 def _save_ticker_data(data):
     symbol = data["ticker"]
     db.save_stock_data(symbol, data)
-    if data.get("sector") or data.get("long_name"):
-        db.update_ticker_metadata(symbol, data.get("sector"), data.get("long_name"))
+    if data.get("sector") or data.get("long_name") or data.get("currency"):
+        db.update_ticker_metadata(symbol, data.get("sector"), data.get("long_name"), data.get("currency"))
     if data.get("recent_actions"):
         db.save_recent_analyst_actions(symbol, data["recent_actions"])
     if data.get("rec_summary"):
         db.save_recommendations_cache(symbol, data["rec_summary"])
+    if data.get("sparkline"):
+        db.save_sparkline(symbol, data["sparkline"])
 
 
 def refresh_all_data():
@@ -171,6 +173,17 @@ def create_app():
             return 'rating-sell'
         return 'rating-hold'
 
+    @app.template_filter('cur_sym')
+    def cur_sym(currency_code):
+        symbols = {
+            "USD": "$", "EUR": "€", "GBP": "£", "GBp": "£", "JPY": "¥",
+            "CHF": "CHF ", "PLN": "zł", "SEK": "kr", "NOK": "kr", "DKK": "kr",
+            "CAD": "C$", "AUD": "A$", "HKD": "HK$", "SGD": "S$",
+            "INR": "₹", "KRW": "₩", "TWD": "NT$", "BRL": "R$",
+            "CNY": "¥", "ZAR": "R", "MXN": "MX$", "ILS": "₪",
+        }
+        return symbols.get(currency_code, f"{currency_code} " if currency_code else "$")
+
     # Routes
     @app.route("/login", methods=["GET", "POST"])
     def login():
@@ -199,9 +212,10 @@ def create_app():
         last_updated = db.get_last_updated()
         trends = db.get_dashboard_trends()
         rec_cache = db.get_all_recommendations_cache()
+        sparklines = db.get_all_sparklines()
         return render_template("dashboard.html",
                                stocks=data, last_updated=last_updated, refreshing=_refreshing,
-                               trends=trends, rec_cache=rec_cache)
+                               trends=trends, rec_cache=rec_cache, sparklines=sparklines)
 
     @app.route("/ticker/<symbol>")
     @login_required

@@ -84,9 +84,17 @@ def _migrate_db(db_path=None):
                 conn.execute(f"ALTER TABLE stock_data ADD COLUMN {col} {typ}")
 
         existing_t = {row[1] for row in conn.execute("PRAGMA table_info(tickers)").fetchall()}
-        for col, typ in {"sector": "TEXT", "long_name": "TEXT"}.items():
+        for col, typ in {"sector": "TEXT", "long_name": "TEXT", "currency": "TEXT"}.items():
             if col not in existing_t:
                 conn.execute(f"ALTER TABLE tickers ADD COLUMN {col} {typ}")
+
+        # Sparkline cache table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS sparkline_cache (
+                ticker_id INTEGER PRIMARY KEY REFERENCES tickers(id) ON DELETE CASCADE,
+                prices TEXT
+            )
+        """)
 
         conn.commit()
     finally:
@@ -121,12 +129,12 @@ def list_tickers(db_path=None):
         conn.close()
 
 
-def update_ticker_metadata(symbol, sector, long_name, db_path=None):
+def update_ticker_metadata(symbol, sector, long_name, currency=None, db_path=None):
     conn = get_db(db_path)
     try:
         conn.execute(
-            "UPDATE tickers SET sector = ?, long_name = ? WHERE symbol = ?",
-            (sector, long_name, symbol)
+            "UPDATE tickers SET sector = ?, long_name = ?, currency = ? WHERE symbol = ?",
+            (sector, long_name, currency, symbol)
         )
         conn.commit()
     finally:
@@ -224,11 +232,41 @@ def save_recommendations_cache(symbol, recs, db_path=None):
         conn.close()
 
 
+def save_sparkline(symbol, prices, db_path=None):
+    import json
+    conn = get_db(db_path)
+    try:
+        row = conn.execute("SELECT id FROM tickers WHERE symbol = ?", (symbol,)).fetchone()
+        if not row:
+            return
+        conn.execute(
+            "INSERT OR REPLACE INTO sparkline_cache (ticker_id, prices) VALUES (?, ?)",
+            (row["id"], json.dumps(prices))
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_all_sparklines(db_path=None):
+    import json
+    conn = get_db(db_path)
+    try:
+        rows = conn.execute("""
+            SELECT t.symbol, sc.prices
+            FROM sparkline_cache sc
+            JOIN tickers t ON t.id = sc.ticker_id
+        """).fetchall()
+        return {r["symbol"]: json.loads(r["prices"]) for r in rows}
+    finally:
+        conn.close()
+
+
 def get_latest_data(db_path=None):
     conn = get_db(db_path)
     try:
         rows = conn.execute("""
-            SELECT t.symbol, t.sector, t.long_name,
+            SELECT t.symbol, t.sector, t.long_name, t.currency,
                    sd.current_price, sd.target_mean, sd.target_low,
                    sd.target_high, sd.upside, sd.n_analysts, sd.strong_buy,
                    sd.buy, sd.hold, sd.sell, sd.strong_sell, sd.updated_at, sd.status,
@@ -304,7 +342,7 @@ def get_ticker_detail(symbol, db_path=None):
     conn = get_db(db_path)
     try:
         row = conn.execute("""
-            SELECT t.symbol, t.sector, t.long_name,
+            SELECT t.symbol, t.sector, t.long_name, t.currency,
                    sd.current_price, sd.target_mean, sd.target_low, sd.target_high,
                    sd.upside, sd.n_analysts, sd.strong_buy, sd.buy, sd.hold, sd.sell,
                    sd.strong_sell, sd.updated_at, sd.status,

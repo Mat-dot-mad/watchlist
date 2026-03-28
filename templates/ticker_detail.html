@@ -18,7 +18,7 @@
 {# ── Top Row: Price + Latest Rating ── #}
 <div class="detail-top-row">
     <div class="price-card">
-        <div class="price-large">{{ detail.current_price|fmt_val }}</div>
+        <div class="price-large">{{ detail.currency|cur_sym }}{{ detail.current_price|fmt_val }}</div>
         {% if detail.upside is not none %}
         <div class="price-upside {{ 'positive' if detail.upside > 0 else 'negative' }}">
             {{ detail.upside }}% to target

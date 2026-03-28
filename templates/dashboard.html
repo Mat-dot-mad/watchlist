@@ -68,24 +68,26 @@
     <table>
         <thead>
             <tr>
-                <th>Ticker</th>
-                <th>Price</th>
-                <th>Target</th>
+                <th class="sortable" data-col="0" data-type="text">Ticker</th>
+                <th>30D</th>
+                <th class="sortable" data-col="2" data-type="num">Price</th>
+                <th class="sortable" data-col="3" data-type="num">Target</th>
                 <th>Sentiment</th>
-                <th>Upside %</th>
-                <th>P/E</th>
-                <th># Analysts</th>
-                <th>Strong Buy</th>
-                <th>Buy</th>
-                <th>Hold</th>
-                <th>Sell</th>
-                <th>Strong Sell</th>
+                <th class="sortable" data-col="5" data-type="num">Upside %</th>
+                <th class="sortable" data-col="6" data-type="num">P/E</th>
+                <th class="sortable" data-col="7" data-type="num"># Analysts</th>
+                <th class="sortable" data-col="8" data-type="num">Strong Buy</th>
+                <th class="sortable" data-col="9" data-type="num">Buy</th>
+                <th class="sortable" data-col="10" data-type="num">Hold</th>
+                <th class="sortable" data-col="11" data-type="num">Sell</th>
+                <th class="sortable" data-col="12" data-type="num">Strong Sell</th>
                 <th>Status</th>
                 <th></th>
             </tr>
         </thead>
         <tbody>
             {% for row in stocks %}
+            {% set cs = row.currency|cur_sym %}
             <tr>
                 <td class="ticker">
                     <a href="{{ url_for('ticker_detail', symbol=row.symbol) }}">{{ row.symbol }}</a>
@@ -93,19 +95,27 @@
                     <span class="sector-label">{{ row.sector }}</span>
                     {% endif %}
                 </td>
-                <td>{{ row.current_price|fmt_val if row.current_price else '—' }}</td>
-                <td>{{ row.target_mean|fmt_val if row.target_mean else '—' }}</td>
+                <td class="sparkline-cell">
+                    {% set sp = sparklines.get(row.symbol, []) %}
+                    {% if sp %}
+                    <canvas class="sparkline" data-prices="{{ sp|tojson }}" width="80" height="32"></canvas>
+                    {% else %}
+                    <span class="no-data">—</span>
+                    {% endif %}
+                </td>
+                <td data-val="{{ row.current_price or '' }}">{{ (cs ~ (row.current_price|fmt_val)) if row.current_price else '—' }}</td>
+                <td data-val="{{ row.target_mean or '' }}">{{ (cs ~ (row.target_mean|fmt_val)) if row.target_mean else '—' }}</td>
                 <td>{{ rec_cache.get(row.symbol, [])|sentiment_bar }}</td>
-                <td class="{% if row.upside is not none %}{{ 'positive' if row.upside > 0 else 'negative' }}{% endif %}">
+                <td data-val="{{ row.upside if row.upside is not none else '' }}" class="{% if row.upside is not none %}{{ 'positive' if row.upside > 0 else 'negative' }}{% endif %}">
                     {{ (row.upside ~ '%') if row.upside is not none else '—' }}
                 </td>
-                <td>{{ row.trailing_pe|fmt_val if row.trailing_pe else '—' }}</td>
-                <td>{{ row.n_analysts if row.n_analysts is not none else '—' }}</td>
-                <td>{{ row.strong_buy if row.strong_buy is not none else '—' }}</td>
-                <td>{{ row.buy if row.buy is not none else '—' }}</td>
-                <td>{{ row.hold if row.hold is not none else '—' }}</td>
-                <td>{{ row.sell if row.sell is not none else '—' }}</td>
-                <td>{{ row.strong_sell if row.strong_sell is not none else '—' }}</td>
+                <td data-val="{{ row.trailing_pe or '' }}">{{ row.trailing_pe|fmt_val if row.trailing_pe else '—' }}</td>
+                <td data-val="{{ row.n_analysts if row.n_analysts is not none else '' }}">{{ row.n_analysts if row.n_analysts is not none else '—' }}</td>
+                <td data-val="{{ row.strong_buy if row.strong_buy is not none else '' }}">{{ row.strong_buy if row.strong_buy is not none else '—' }}</td>
+                <td data-val="{{ row.buy if row.buy is not none else '' }}">{{ row.buy if row.buy is not none else '—' }}</td>
+                <td data-val="{{ row.hold if row.hold is not none else '' }}">{{ row.hold if row.hold is not none else '—' }}</td>
+                <td data-val="{{ row.sell if row.sell is not none else '' }}">{{ row.sell if row.sell is not none else '—' }}</td>
+                <td data-val="{{ row.strong_sell if row.strong_sell is not none else '' }}">{{ row.strong_sell if row.strong_sell is not none else '—' }}</td>
                 <td>
                     {% if row.status == 'OK' %}
                         <span class="badge badge-ok">OK</span>
@@ -201,6 +211,63 @@
 
     document.addEventListener('click', function(e) {
         if (!e.target.closest('.autocomplete-wrapper')) { dropdown.style.display = 'none'; }
+    });
+})();
+
+// Sparklines
+(function() {
+    document.querySelectorAll('.sparkline').forEach(function(canvas) {
+        var prices = JSON.parse(canvas.dataset.prices);
+        if (prices.length < 2) return;
+        var ctx = canvas.getContext('2d');
+        var w = canvas.width, h = canvas.height;
+        var min = Math.min.apply(null, prices), max = Math.max.apply(null, prices);
+        var range = max - min || 1;
+        var step = w / (prices.length - 1);
+        var up = prices[prices.length - 1] >= prices[0];
+        ctx.strokeStyle = up ? '#3fb950' : '#f85149';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        prices.forEach(function(p, i) {
+            var x = i * step;
+            var y = h - ((p - min) / range) * (h - 4) - 2;
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+    });
+})();
+
+// Sortable table
+(function() {
+    var table = document.querySelector('.table-wrapper table');
+    if (!table) return;
+    var headers = table.querySelectorAll('th.sortable');
+    var tbody = table.querySelector('tbody');
+    var sortCol = -1, sortAsc = true;
+
+    headers.forEach(function(th) {
+        th.addEventListener('click', function() {
+            var col = parseInt(th.dataset.col);
+            var type = th.dataset.type;
+            if (sortCol === col) { sortAsc = !sortAsc; } else { sortCol = col; sortAsc = true; }
+            headers.forEach(function(h) { h.classList.remove('sort-asc', 'sort-desc'); });
+            th.classList.add(sortAsc ? 'sort-asc' : 'sort-desc');
+            var rows = Array.from(tbody.querySelectorAll('tr'));
+            rows.sort(function(a, b) {
+                var av, bv;
+                if (type === 'num') {
+                    av = parseFloat(a.children[col].dataset.val) || -Infinity;
+                    bv = parseFloat(b.children[col].dataset.val) || -Infinity;
+                } else {
+                    av = a.children[col].textContent.trim().toLowerCase();
+                    bv = b.children[col].textContent.trim().toLowerCase();
+                }
+                if (av < bv) return sortAsc ? -1 : 1;
+                if (av > bv) return sortAsc ? 1 : -1;
+                return 0;
+            });
+            rows.forEach(function(r) { tbody.appendChild(r); });
+        });
     });
 })();
 </script>

@@ -47,3 +47,6 @@ jobs:
         run: python watchlist_updater.py --now
         env:
           SHEET_ID: ${{ secrets.SHEET_ID }}  # ID arkusza jako Secret
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

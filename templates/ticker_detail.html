@@ -307,15 +307,29 @@ function fmtB(v) {
             },
         },
         plugins: [{
-            id: 'recTotalLabels',
+            id: 'recSegmentLabels',
             afterDraw: function(chart) {
                 var ctx = chart.ctx;
+                ctx.save();
+                ctx.font = 'bold 9px sans-serif';
+                ctx.textAlign = 'center';
+                // Draw label inside each segment and total on top
+                chart.data.datasets.forEach(function(ds, dsIdx) {
+                    var meta = chart.getDatasetMeta(dsIdx);
+                    meta.data.forEach(function(bar, i) {
+                        var val = ds.data[i];
+                        if (!val || val < 1) return;
+                        var h = bar.height || (bar.base - bar.y);
+                        if (h < 14) return; // skip tiny segments
+                        ctx.fillStyle = '#fff';
+                        ctx.fillText(val, bar.x, bar.y + h / 2 + 3);
+                    });
+                });
+                // Total on top
                 var xScale = chart.scales.x;
                 var yScale = chart.scales.y;
-                ctx.save();
                 ctx.fillStyle = '#e1e4e8';
                 ctx.font = 'bold 11px sans-serif';
-                ctx.textAlign = 'center';
                 totals.forEach(function(total, i) {
                     var x = xScale.getPixelForValue(i);
                     var y = yScale.getPixelForValue(total);

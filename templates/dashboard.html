@@ -225,7 +225,8 @@
         var range = max - min || 1;
         var step = w / (prices.length - 1);
         var up = prices[prices.length - 1] >= prices[0];
-        ctx.strokeStyle = up ? '#3fb950' : '#f85149';
+        var color = up ? '#00d26a' : '#ff4d4f';
+        ctx.strokeStyle = color;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         prices.forEach(function(p, i) {
@@ -234,6 +235,16 @@
             if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
         });
         ctx.stroke();
+        // Fill under the line
+        var lastY = h - ((prices[prices.length - 1] - min) / range) * (h - 4) - 2;
+        ctx.lineTo(w, h);
+        ctx.lineTo(0, h);
+        ctx.closePath();
+        var grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, up ? 'rgba(0,210,106,0.25)' : 'rgba(255,77,79,0.25)');
+        grad.addColorStop(1, 'transparent');
+        ctx.fillStyle = grad;
+        ctx.fill();
     });
 })();
 

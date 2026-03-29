@@ -563,12 +563,28 @@ function fmtB(v) {
             }
         });
 
-        // Calculate y-axis bounds based on price data with headroom for dots
+        // Calculate y-axis bounds: price axis focused on closes, target axis spans both
         var priceMin = Math.min.apply(null, closes);
         var priceMax = Math.max.apply(null, closes);
         var priceRange = priceMax - priceMin || 1;
-        var yMin = Math.floor(priceMin - priceRange * 0.05);
-        var yMax = Math.ceil(priceMax + priceRange * 0.5);
+        var yPriceMin = Math.floor(priceMin - priceRange * 0.05);
+        var yPriceMax = Math.ceil(priceMax + priceRange * 0.10);
+
+        // Target axis: spans from price range low to highest target (or price max if no dots)
+        var targetValues = ratingPts.map(r => r.y);
+        var allValues = closes.concat(targetValues);
+        var yTargetMin = yPriceMin;
+        var yTargetMax = targetValues.length ? Math.ceil(Math.max.apply(null, allValues) * 1.05) : yPriceMax;
+
+        // Color helper for analyst dots
+        function dotColor(r) {
+            var pa = (r.priceAction || '').toLowerCase();
+            if (pa === 'raises') return '#3fb950';
+            if (pa === 'lowers') return '#f85149';
+            if (pa === 'maintains') return '#8b949e';
+            if (pa === 'announces') return '#58a6ff';
+            return '#d29922';
+        }
 
         if (priceChart) priceChart.destroy();
         priceChart = new Chart(canvas, {
@@ -576,31 +592,18 @@ function fmtB(v) {
             data: {
                 labels: labels,
                 datasets: [
-                    { label: 'Price', data: closes, borderColor: '#58a6ff', borderWidth: 1.5, pointRadius: 0, tension: 0, fill: false, order: 2 },
-                    { label: '50D MA', data: ma(closes, 50), borderColor: '#d29922', borderWidth: 1, pointRadius: 0, borderDash: [4, 2], tension: 0.3, order: 3 },
-                    { label: '200D MA', data: ma(closes, 200), borderColor: '#f85149', borderWidth: 1, pointRadius: 0, borderDash: [4, 2], tension: 0.3, order: 4 },
+                    { label: 'Price', data: closes, borderColor: '#58a6ff', borderWidth: 1.5, pointRadius: 0, tension: 0, fill: false, order: 2, yAxisID: 'yPrice' },
+                    { label: '50D MA', data: ma(closes, 50), borderColor: '#d29922', borderWidth: 1, pointRadius: 0, borderDash: [4, 2], tension: 0.3, order: 3, yAxisID: 'yPrice' },
+                    { label: '200D MA', data: ma(closes, 200), borderColor: '#f85149', borderWidth: 1, pointRadius: 0, borderDash: [4, 2], tension: 0.3, order: 4, yAxisID: 'yPrice' },
                     {
                         label: 'Analyst Rating',
                         data: ratingPts.map(r => ({ x: r.x, y: r.y })),
                         type: 'scatter',
+                        yAxisID: 'yTarget',
                         pointRadius: 5,
                         pointHoverRadius: 8,
-                        pointBackgroundColor: ratingPts.map(function(r) {
-                            var pa = (r.priceAction || '').toLowerCase();
-                            if (pa === 'raises') return '#3fb950';
-                            if (pa === 'lowers') return '#f85149';
-                            if (pa === 'maintains') return '#8b949e';
-                            if (pa === 'announces') return '#58a6ff';
-                            return '#d29922';
-                        }),
-                        pointBorderColor: ratingPts.map(function(r) {
-                            var pa = (r.priceAction || '').toLowerCase();
-                            if (pa === 'raises') return '#3fb950';
-                            if (pa === 'lowers') return '#f85149';
-                            if (pa === 'maintains') return '#8b949e';
-                            if (pa === 'announces') return '#58a6ff';
-                            return '#d29922';
-                        }),
+                        pointBackgroundColor: ratingPts.map(dotColor),
+                        pointBorderColor: ratingPts.map(dotColor),
                         pointStyle: 'circle',
                         showLine: false,
                         order: 1,
@@ -646,7 +649,22 @@ function fmtB(v) {
                         grid: { display: false },
                         ticks: { maxTicksLimit: 12, font: { size: 9 } },
                     },
-                    y: { grid: { color: '#21262d' }, min: yMin, max: yMax },
+                    yPrice: {
+                        type: 'linear',
+                        position: 'left',
+                        grid: { color: '#21262d' },
+                        min: yPriceMin,
+                        max: yPriceMax,
+                        title: { display: true, text: 'Price', font: { size: 10 }, color: '#58a6ff' },
+                    },
+                    yTarget: {
+                        type: 'linear',
+                        position: 'right',
+                        grid: { drawOnChartArea: false },
+                        min: yTargetMin,
+                        max: yTargetMax,
+                        title: { display: true, text: 'Price Target', font: { size: 10 }, color: '#8b949e' },
+                    },
                 },
             }
         });

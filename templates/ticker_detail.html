@@ -159,8 +159,8 @@
             <button class="period-btn" data-period="1M">1M</button>
             <button class="period-btn" data-period="3M">3M</button>
             <button class="period-btn" data-period="6M">6M</button>
-            <button class="period-btn" data-period="YTD">YTD</button>
-            <button class="period-btn active" data-period="1Y">1Y</button>
+            <button class="period-btn active" data-period="YTD">YTD</button>
+            <button class="period-btn" data-period="1Y">1Y</button>
         </div>
     </div>
     <div style="height:330px"><canvas id="priceChart"></canvas></div>
@@ -563,6 +563,13 @@ function fmtB(v) {
             }
         });
 
+        // Calculate y-axis bounds based on price data with headroom for dots
+        var priceMin = Math.min.apply(null, closes);
+        var priceMax = Math.max.apply(null, closes);
+        var priceRange = priceMax - priceMin || 1;
+        var yMin = Math.floor(priceMin - priceRange * 0.05);
+        var yMax = Math.ceil(priceMax + priceRange * 0.5);
+
         if (priceChart) priceChart.destroy();
         priceChart = new Chart(canvas, {
             type: 'line',
@@ -639,14 +646,14 @@ function fmtB(v) {
                         grid: { display: false },
                         ticks: { maxTicksLimit: 12, font: { size: 9 } },
                     },
-                    y: { grid: { color: '#21262d' } },
+                    y: { grid: { color: '#21262d' }, min: yMin, max: yMax },
                 },
             }
         });
     }
 
     // Initial build
-    buildPriceChart('1Y');
+    buildPriceChart('YTD');
 
     // Period buttons
     document.querySelectorAll('.period-btn').forEach(function(btn) {

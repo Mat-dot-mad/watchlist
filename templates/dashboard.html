@@ -256,30 +256,39 @@
     var tbody = table.querySelector('tbody');
     var sortCol = -1, sortAsc = true;
 
+    function doSort(col, type, asc) {
+        sortCol = col; sortAsc = asc;
+        headers.forEach(function(h) { h.classList.remove('sort-asc', 'sort-desc'); });
+        var th = table.querySelector('th[data-col="' + col + '"]');
+        if (th) th.classList.add(asc ? 'sort-asc' : 'sort-desc');
+        var rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.sort(function(a, b) {
+            var av, bv;
+            if (type === 'num') {
+                av = parseFloat(a.children[col].dataset.val) || -Infinity;
+                bv = parseFloat(b.children[col].dataset.val) || -Infinity;
+            } else {
+                av = a.children[col].textContent.trim().toLowerCase();
+                bv = b.children[col].textContent.trim().toLowerCase();
+            }
+            if (av < bv) return asc ? -1 : 1;
+            if (av > bv) return asc ? 1 : -1;
+            return 0;
+        });
+        rows.forEach(function(r) { tbody.appendChild(r); });
+    }
+
     headers.forEach(function(th) {
         th.addEventListener('click', function() {
             var col = parseInt(th.dataset.col);
             var type = th.dataset.type;
             if (sortCol === col) { sortAsc = !sortAsc; } else { sortCol = col; sortAsc = true; }
-            headers.forEach(function(h) { h.classList.remove('sort-asc', 'sort-desc'); });
-            th.classList.add(sortAsc ? 'sort-asc' : 'sort-desc');
-            var rows = Array.from(tbody.querySelectorAll('tr'));
-            rows.sort(function(a, b) {
-                var av, bv;
-                if (type === 'num') {
-                    av = parseFloat(a.children[col].dataset.val) || -Infinity;
-                    bv = parseFloat(b.children[col].dataset.val) || -Infinity;
-                } else {
-                    av = a.children[col].textContent.trim().toLowerCase();
-                    bv = b.children[col].textContent.trim().toLowerCase();
-                }
-                if (av < bv) return sortAsc ? -1 : 1;
-                if (av > bv) return sortAsc ? 1 : -1;
-                return 0;
-            });
-            rows.forEach(function(r) { tbody.appendChild(r); });
+            doSort(col, type, sortAsc);
         });
     });
+
+    // Default sort: Upside % (col 5) descending
+    doSort(5, 'num', false);
 })();
 </script>
 {% endblock %}

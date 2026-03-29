@@ -163,7 +163,7 @@
             <button class="period-btn" data-period="1Y">1Y</button>
         </div>
     </div>
-    <div style="height:330px"><canvas id="priceChart"></canvas></div>
+    <div style="height:500px"><canvas id="priceChart"></canvas></div>
 </div>
 {% endif %}
 
@@ -563,19 +563,6 @@ function fmtB(v) {
             }
         });
 
-        // Calculate y-axis bounds: price axis focused on closes, target axis spans both
-        var priceMin = Math.min.apply(null, closes);
-        var priceMax = Math.max.apply(null, closes);
-        var priceRange = priceMax - priceMin || 1;
-        var yPriceMin = Math.floor(priceMin - priceRange * 0.05);
-        var yPriceMax = Math.ceil(priceMax + priceRange * 0.10);
-
-        // Target axis: spans from price range low to highest target (or price max if no dots)
-        var targetValues = ratingPts.map(r => r.y);
-        var allValues = closes.concat(targetValues);
-        var yTargetMin = yPriceMin;
-        var yTargetMax = targetValues.length ? Math.ceil(Math.max.apply(null, allValues) * 1.05) : yPriceMax;
-
         // Color helper for analyst dots
         function dotColor(r) {
             var pa = (r.priceAction || '').toLowerCase();
@@ -592,14 +579,26 @@ function fmtB(v) {
             data: {
                 labels: labels,
                 datasets: [
-                    { label: 'Price', data: closes, borderColor: '#58a6ff', borderWidth: 1.5, pointRadius: 0, tension: 0, fill: false, order: 2, yAxisID: 'yPrice' },
-                    { label: '50D MA', data: ma(closes, 50), borderColor: '#d29922', borderWidth: 1, pointRadius: 0, borderDash: [4, 2], tension: 0.3, order: 3, yAxisID: 'yPrice' },
-                    { label: '200D MA', data: ma(closes, 200), borderColor: '#f85149', borderWidth: 1, pointRadius: 0, borderDash: [4, 2], tension: 0.3, order: 4, yAxisID: 'yPrice' },
+                    {
+                        label: 'Price', data: closes, borderColor: '#58a6ff', borderWidth: 1.5,
+                        pointRadius: 0, tension: 0, order: 2,
+                        fill: true,
+                        backgroundColor: function(ctx) {
+                            var chart = ctx.chart;
+                            var {ctx: c, chartArea} = chart;
+                            if (!chartArea) return 'transparent';
+                            var grad = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                            grad.addColorStop(0, 'rgba(88,166,255,0.25)');
+                            grad.addColorStop(1, 'rgba(88,166,255,0.02)');
+                            return grad;
+                        },
+                    },
+                    { label: '50D MA', data: ma(closes, 50), borderColor: '#d29922', borderWidth: 1, pointRadius: 0, borderDash: [4, 2], tension: 0.3, fill: false, order: 3 },
+                    { label: '200D MA', data: ma(closes, 200), borderColor: '#f85149', borderWidth: 1, pointRadius: 0, borderDash: [4, 2], tension: 0.3, fill: false, order: 4 },
                     {
                         label: 'Analyst Rating',
                         data: ratingPts.map(r => ({ x: r.x, y: r.y })),
                         type: 'scatter',
-                        yAxisID: 'yTarget',
                         pointRadius: 5,
                         pointHoverRadius: 8,
                         pointBackgroundColor: ratingPts.map(dotColor),
@@ -649,22 +648,7 @@ function fmtB(v) {
                         grid: { display: false },
                         ticks: { maxTicksLimit: 12, font: { size: 9 } },
                     },
-                    yPrice: {
-                        type: 'linear',
-                        position: 'left',
-                        grid: { color: '#21262d' },
-                        min: yPriceMin,
-                        max: yPriceMax,
-                        title: { display: true, text: 'Price', font: { size: 10 }, color: '#58a6ff' },
-                    },
-                    yTarget: {
-                        type: 'linear',
-                        position: 'right',
-                        grid: { drawOnChartArea: false },
-                        min: yTargetMin,
-                        max: yTargetMax,
-                        title: { display: true, text: 'Price Target', font: { size: 10 }, color: '#8b949e' },
-                    },
+                    y: { grid: { color: '#21262d' } },
                 },
             }
         });

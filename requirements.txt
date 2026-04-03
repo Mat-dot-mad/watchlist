@@ -5,4 +5,4 @@ google-auth
 Flask
 requests
 gunicorn
-APScheduler
+schedule

@@ -88,14 +88,17 @@ def fetch_ticker_data(ticker: str) -> dict:
         except Exception:
             pass
 
-        # 30-day sparkline
+        # 30-day sparkline (with retries — Yahoo often throttles)
         sparkline = []
-        try:
-            hist = t.history(period="1mo")
-            if hist is not None and not hist.empty:
-                sparkline = [round(float(row["Close"]), 2) for _, row in hist.iterrows()]
-        except Exception:
-            pass
+        for attempt in range(3):
+            try:
+                hist = t.history(period="1mo")
+                if hist is not None and not hist.empty:
+                    sparkline = [round(float(row["Close"]), 2) for _, row in hist.iterrows()]
+                    break
+            except Exception as e:
+                log.warning(f"  [{ticker}] sparkline attempt {attempt + 1} failed: {e}")
+            time.sleep(1.5 * (attempt + 1))  # 1.5s, 3s, 4.5s backoff
 
         return {
             "ticker": ticker,

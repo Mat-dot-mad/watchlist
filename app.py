@@ -108,7 +108,7 @@ def create_app():
 
     # Background scheduler
     scheduler = BackgroundScheduler()
-    refresh_hour = int(os.environ.get("REFRESH_HOUR", "8"))
+    refresh_hour = int(os.environ.get("REFRESH_HOUR", "5"))
     scheduler.add_job(refresh_all_data, "cron", hour=refresh_hour, minute=0)
     scheduler.start()
 

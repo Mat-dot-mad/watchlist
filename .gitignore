@@ -4,3 +4,6 @@ __pycache__/
 *.pyc
 .env
 watchlist_updater.log
+.DS_Store
+.claude/
+venv/

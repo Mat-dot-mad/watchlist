@@ -37,16 +37,15 @@ Originally deployed on Railway, currently self-hosted on a Raspberry Pi reachabl
 ├── fetcher.py              # All Yahoo Finance fetching (single ticker + bulk + detail page)
 ├── db.py                   # SQLite schema, queries, ticker import/export helpers
 ├── sheets_sync.py          # Optional Google Sheets push/import
-├── watchlist_updater.py    # Standalone refresh script (used by the GitHub Action)
+├── watchlist_updater.py    # Standalone refresh script (legacy; not used by the Pi deployment)
 ├── requirements.txt
 ├── Procfile                # Railway/Heroku-style start command (kept for portability)
 ├── tickers.txt             # Plain list of ticker symbols, one per line
 ├── templates/              # Jinja2 templates (base, dashboard, ticker_detail, login)
-├── static/                 # CSS + JS for the dashboard
-└── .github/workflows/      # GitHub Action that can also drive the daily refresh
+└── static/                 # CSS + JS for the dashboard
 ```
 
-The two refresh paths (in-app `APScheduler` and the standalone `watchlist_updater.py` script) exist for historical reasons — the script was the original mechanism (driven by GitHub Actions writing to Google Sheets), and the in-process scheduler was added when the app moved to Flask. On the Pi, only the in-app scheduler is used.
+`watchlist_updater.py` is a leftover from before the app moved to Flask — back then it was driven by a GitHub Action that wrote results into a Google Sheet. On the Pi, only the in-app `APScheduler` is used; the standalone script is kept around purely for the rare case of triggering a manual refresh from a laptop.
 
 ---
 
@@ -169,18 +168,12 @@ rclone copy gdrive:watchlist-backups/watchlist-YYYY-MM-DD.db /tmp/
 
 ---
 
-## GitHub Action
-
-`.github/workflows/update_watchlist.yml` runs `watchlist_updater.py` on a schedule. This is a leftover from the pre-Pi setup, where the action wrote data into a Google Sheet. It's not required for the Pi deployment to work and can be disabled if the Sheets sync is not in use.
-
----
-
 ## Common gotchas
 
 - **`yfinance` throttles**. If sparklines or recommendations come back empty for some tickers, it's almost always Yahoo rate-limiting. The fetcher retries 3 times with backoff for sparklines, but a single refresh can still miss a few — they recover on the next run.
 - **`REFRESH_HOUR` is server local time**, not UTC. Set the Pi's timezone correctly, or just pick the hour in the timezone you actually want.
 - **NaN in JSON**. The dashboard JS used to break when a numeric field came back as `NaN` because `JSON.parse` rejects it. Sparkline values are now coerced to floats before being saved, but if a future field is added that can be NaN, wrap it in `_fmt(...)` in `fetcher.py`.
-- **Two refresh code paths**. Schema or column changes need to be reflected in both `fetcher.py` (used by the in-app scheduler) and `watchlist_updater.py` (used by the GitHub Action) if both are kept active.
+- **Two refresh code paths**. `fetcher.py` is the live one (used by the in-app scheduler). `watchlist_updater.py` is the legacy standalone script — only relevant if you ever revive Sheets sync. If you change the data shape, only `fetcher.py` needs touching for the Pi setup to stay correct.
 
 ---
 

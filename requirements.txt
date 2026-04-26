@@ -1,9 +1,6 @@
 yfinance
 lxml
-gspread
-google-auth
 Flask
 requests
 gunicorn
-schedule
 APScheduler

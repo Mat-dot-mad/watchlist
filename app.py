@@ -59,14 +59,6 @@ def refresh_all_data():
         for data in results:
             _save_ticker_data(data)
 
-        # Optional Sheets sync
-        try:
-            from sheets_sync import is_sheets_configured, sync_to_sheets
-            if is_sheets_configured():
-                sync_to_sheets(results)
-        except Exception as e:
-            log.warning(f"Sheets sync failed: {e}")
-
         log.info("Refresh complete.")
     except Exception as e:
         log.error(f"Refresh error: {e}")
@@ -84,27 +76,13 @@ def create_app():
     # Initialize database
     db.init_db()
 
-    # Seed tickers if DB is empty
+    # Seed tickers from tickers.txt if DB is empty
     if not db.list_tickers():
-        seeded = False
-        # Try Google Sheets first
-        try:
-            from sheets_sync import import_tickers_from_sheet, is_sheets_configured
-            if is_sheets_configured():
-                tickers = import_tickers_from_sheet()
-                for t in tickers:
-                    db.add_ticker(t)
-                log.info(f"Imported {len(tickers)} tickers from Google Sheets.")
-                seeded = True
-        except Exception as e:
-            log.warning(f"Could not import from Sheets: {e}")
-        # Fallback: seed from tickers.txt
-        if not seeded:
-            file_tickers = db.import_tickers_from_file()
-            if file_tickers:
-                for t in file_tickers:
-                    db.add_ticker(t)
-                log.info(f"Imported {len(file_tickers)} tickers from tickers.txt.")
+        file_tickers = db.import_tickers_from_file()
+        if file_tickers:
+            for t in file_tickers:
+                db.add_ticker(t)
+            log.info(f"Imported {len(file_tickers)} tickers from tickers.txt.")
 
     # Background scheduler
     scheduler = BackgroundScheduler()

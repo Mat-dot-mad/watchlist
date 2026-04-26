@@ -13,7 +13,6 @@ Originally deployed on Railway, currently self-hosted on a Raspberry Pi reachabl
 - **Per-ticker detail page** — analyst upgrade/downgrade history, recommendation trend over the last 4 months, 1-year price chart, EPS estimates vs. actuals, and revenue/earnings history.
 - **Add / remove tickers** through the UI; the list is mirrored to `tickers.txt` so it survives a database wipe.
 - **Manual refresh** button for ad-hoc updates outside the schedule.
-- **Optional Google Sheets sync** — if `SHEET_ID` and a service-account JSON are configured, ticker data syncs to a sheet. Skipped silently when not configured (this is the default for the self-hosted setup).
 - **Login wall** — single shared password (`DASHBOARD_PASSWORD`). If unset, the login is skipped (only safe behind Tailscale or on localhost).
 
 ---
@@ -25,7 +24,6 @@ Originally deployed on Railway, currently self-hosted on a Raspberry Pi reachabl
 - **APScheduler** for the daily in-process refresh job
 - **yfinance** for Yahoo Finance data
 - **SQLite** for storage (single file, no separate DB server)
-- **gspread** + **google-auth** for the optional Google Sheets sync
 
 ---
 
@@ -36,16 +34,11 @@ Originally deployed on Railway, currently self-hosted on a Raspberry Pi reachabl
 ├── app.py                  # Flask app factory, routes, scheduler, template filters
 ├── fetcher.py              # All Yahoo Finance fetching (single ticker + bulk + detail page)
 ├── db.py                   # SQLite schema, queries, ticker import/export helpers
-├── sheets_sync.py          # Optional Google Sheets push/import
-├── watchlist_updater.py    # Standalone refresh script (legacy; not used by the Pi deployment)
 ├── requirements.txt
-├── Procfile                # Railway/Heroku-style start command (kept for portability)
 ├── tickers.txt             # Plain list of ticker symbols, one per line
 ├── templates/              # Jinja2 templates (base, dashboard, ticker_detail, login)
 └── static/                 # CSS + JS for the dashboard
 ```
-
-`watchlist_updater.py` is a leftover from before the app moved to Flask — back then it was driven by a GitHub Action that wrote results into a Google Sheet. On the Pi, only the in-app `APScheduler` is used; the standalone script is kept around purely for the rare case of triggering a manual refresh from a laptop.
 
 ---
 
@@ -58,8 +51,6 @@ Originally deployed on Railway, currently self-hosted on a Raspberry Pi reachabl
 | `DASHBOARD_PASSWORD` | recommended | Password for the `/login` page. If unset, login is bypassed — only safe on localhost or behind a VPN. |
 | `DATABASE_PATH` | no (default `watchlist.db` next to `app.py`) | Where the SQLite file lives. In production, point this somewhere persistent like `/var/lib/watchlist/watchlist.db`. |
 | `REFRESH_HOUR` | no (default `5`) | Hour of day (0–23, server local time) the auto-refresh runs. |
-| `SHEET_ID` | no | Google Sheets ID. If set together with `GOOGLE_SERVICE_ACCOUNT_JSON`, enables the Sheets sync. |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | no | The service-account JSON, as a single-line string. Skipped if blank. |
 
 **Never commit any of these values to the repo.** Local development can use a `.env` file (already gitignored) or shell `export`s; production reads them from a service-managed env file.
 
@@ -173,7 +164,6 @@ rclone copy gdrive:watchlist-backups/watchlist-YYYY-MM-DD.db /tmp/
 - **`yfinance` throttles**. If sparklines or recommendations come back empty for some tickers, it's almost always Yahoo rate-limiting. The fetcher retries 3 times with backoff for sparklines, but a single refresh can still miss a few — they recover on the next run.
 - **`REFRESH_HOUR` is server local time**, not UTC. Set the Pi's timezone correctly, or just pick the hour in the timezone you actually want.
 - **NaN in JSON**. The dashboard JS used to break when a numeric field came back as `NaN` because `JSON.parse` rejects it. Sparkline values are now coerced to floats before being saved, but if a future field is added that can be NaN, wrap it in `_fmt(...)` in `fetcher.py`.
-- **Two refresh code paths**. `fetcher.py` is the live one (used by the in-app scheduler). `watchlist_updater.py` is the legacy standalone script — only relevant if you ever revive Sheets sync. If you change the data shape, only `fetcher.py` needs touching for the Pi setup to stay correct.
 
 ---
 

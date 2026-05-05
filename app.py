@@ -84,10 +84,22 @@ def create_app():
                 db.add_ticker(t)
             log.info(f"Imported {len(file_tickers)} tickers from tickers.txt.")
 
-    # Background scheduler
+    # Background scheduler.
+    # misfire_grace_time forgives the scheduler being late (e.g. brief CPU/IO
+    # stalls, recent service restart) so a daily refresh that "missed" its
+    # 5 AM slot still runs when the scheduler next wakes up.
+    # coalesce collapses multiple missed firings (e.g. Pi was off for days)
+    # into a single run instead of firing back-to-back.
     scheduler = BackgroundScheduler()
     refresh_hour = int(os.environ.get("REFRESH_HOUR", "5"))
-    scheduler.add_job(refresh_all_data, "cron", hour=refresh_hour, minute=0)
+    scheduler.add_job(
+        refresh_all_data,
+        "cron",
+        hour=refresh_hour,
+        minute=0,
+        misfire_grace_time=3600,
+        coalesce=True,
+    )
     scheduler.start()
 
     # Template filters

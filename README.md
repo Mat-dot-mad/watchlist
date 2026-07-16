@@ -51,6 +51,7 @@ Originally deployed on Railway, currently self-hosted on a Raspberry Pi reachabl
 | `DASHBOARD_PASSWORD` | recommended | Password for the `/login` page. If unset, login is bypassed — only safe on localhost or behind a VPN. |
 | `DATABASE_PATH` | no (default `watchlist.db` next to `app.py`) | Where the SQLite file lives. In production, point this somewhere persistent like `/var/lib/watchlist/watchlist.db`. |
 | `REFRESH_HOUR` | no (default `5`) | Hour of day (0–23, server local time) the auto-refresh runs. |
+| `TICKERS_FILE` | no (default `tickers.txt`) | Where the app writes the ticker list when you add/remove tickers. In production, point it outside the git clone (e.g. `/var/lib/watchlist/tickers.txt`) — otherwise the app modifies a git-tracked file and the next `git pull` will refuse to run. The repo's `tickers.txt` is still used as a seed on a fresh, empty database. |
 
 **Never commit any of these values to the repo.** Local development can use a `.env` file (already gitignored) or shell `export`s; production reads them from a service-managed env file.
 

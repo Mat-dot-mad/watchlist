@@ -3,6 +3,10 @@ import sqlite3
 from datetime import datetime
 
 DATABASE_PATH = os.environ.get("DATABASE_PATH", "watchlist.db")
+# Where add/remove-ticker writes the ticker list. In production point this
+# outside the git clone (e.g. /var/lib/watchlist/tickers.txt) so the app
+# never modifies a tracked file and `git pull` stays conflict-free.
+TICKERS_FILE = os.environ.get("TICKERS_FILE", "tickers.txt")
 
 
 def get_db(db_path=None):
@@ -129,19 +133,24 @@ def list_tickers(db_path=None):
         conn.close()
 
 
-def export_tickers_to_file(filepath="tickers.txt", db_path=None):
+def export_tickers_to_file(filepath=None, db_path=None):
     tickers = list_tickers(db_path)
     if tickers:
-        with open(filepath, "w") as f:
+        with open(filepath or TICKERS_FILE, "w") as f:
             f.write("\n".join(tickers) + "\n")
 
 
-def import_tickers_from_file(filepath="tickers.txt"):
-    try:
-        with open(filepath) as f:
-            return [line.strip().upper() for line in f if line.strip()]
-    except FileNotFoundError:
-        return []
+def import_tickers_from_file(filepath=None):
+    # Prefer the configured file; fall back to the repo's tickers.txt so a
+    # fresh install still seeds even before TICKERS_FILE has been written.
+    candidates = [filepath] if filepath else [TICKERS_FILE, "tickers.txt"]
+    for path in candidates:
+        try:
+            with open(path) as f:
+                return [line.strip().upper() for line in f if line.strip()]
+        except FileNotFoundError:
+            continue
+    return []
 
 
 def update_ticker_metadata(symbol, sector, long_name, currency=None, db_path=None):

@@ -171,14 +171,23 @@
                 .then(function(r) { return r.json(); })
                 .then(function(items) {
                     selectedIdx = -1;
-                    if (!items.length) { dropdown.innerHTML = ''; dropdown.style.display = 'none'; return; }
-                    dropdown.innerHTML = items.map(function(it, i) {
-                        return '<div class="ac-item" data-symbol="' + it.symbol + '" data-idx="' + i + '">'
-                            + '<span class="ac-symbol">' + it.symbol + '</span>'
-                            + '<span class="ac-name">' + it.name + '</span>'
-                            + '<span class="ac-exchange">' + it.exchange + '</span>'
-                            + '</div>';
-                    }).join('');
+                    dropdown.innerHTML = '';
+                    if (!items.length) { dropdown.style.display = 'none'; return; }
+                    // Build with textContent, not HTML strings: names come from
+                    // an external API and may contain markup characters.
+                    items.forEach(function(it, i) {
+                        var item = document.createElement('div');
+                        item.className = 'ac-item';
+                        item.dataset.symbol = it.symbol;
+                        item.dataset.idx = i;
+                        [['ac-symbol', it.symbol], ['ac-name', it.name], ['ac-exchange', it.exchange]].forEach(function(pair) {
+                            var span = document.createElement('span');
+                            span.className = pair[0];
+                            span.textContent = pair[1];
+                            item.appendChild(span);
+                        });
+                        dropdown.appendChild(item);
+                    });
                     dropdown.style.display = 'block';
                 });
         }, 250);

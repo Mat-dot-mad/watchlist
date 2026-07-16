@@ -1,3 +1,4 @@
+import hmac
 import logging
 import os
 import threading
@@ -192,7 +193,7 @@ def create_app():
             return redirect(url_for("dashboard"))
 
         if request.method == "POST":
-            if request.form.get("password") == password:
+            if hmac.compare_digest(request.form.get("password", ""), password):
                 session.permanent = True
                 session["authenticated"] = True
                 return redirect(url_for("dashboard"))

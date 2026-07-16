@@ -165,6 +165,8 @@ rclone copy gdrive:watchlist-backups/watchlist-YYYY-MM-DD.db /tmp/
 - **`yfinance` throttles**. If sparklines or recommendations come back empty for some tickers, it's almost always Yahoo rate-limiting. The fetcher retries 3 times with backoff for sparklines, but a single refresh can still miss a few — they recover on the next run.
 - **`REFRESH_HOUR` is server local time**, not UTC. Set the Pi's timezone correctly, or just pick the hour in the timezone you actually want.
 - **NaN in JSON**. The dashboard JS used to break when a numeric field came back as `NaN` because `JSON.parse` rejects it. Sparkline values are now coerced to floats before being saved, but if a future field is added that can be NaN, wrap it in `_fmt(...)` in `fetcher.py`.
+- **Keep gunicorn at `--workers 1`.** The daily refresh scheduler (APScheduler) runs *inside* the app process. With more than one worker, each worker starts its own scheduler and the refresh runs multiple times concurrently, hammering Yahoo. If the app ever needs more workers, the scheduler must first move out of the web process (e.g. to a system cron job hitting a refresh endpoint).
+- **`stock_data` history grows forever.** Every refresh inserts a fresh row per ticker (~14k rows/year at 38 tickers) and nothing prunes old rows. SQLite handles this fine for years, so it's deliberate for now — but if the DB or its backups ever feel bloated, a periodic `DELETE FROM stock_data WHERE updated_at < date('now', '-1 year')` is the fix.
 
 ---
 

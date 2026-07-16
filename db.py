@@ -156,6 +156,12 @@ def update_ticker_metadata(symbol, sector, long_name, currency=None, db_path=Non
         conn.close()
 
 
+def _num(val):
+    # 0 is real data (e.g. zero Strong Sell ratings); only blank means missing.
+    # A bare `or None` would turn 0 into NULL.
+    return None if val in (None, "") else val
+
+
 def save_stock_data(ticker_symbol, data, db_path=None):
     conn = get_db(db_path)
     try:
@@ -174,29 +180,29 @@ def save_stock_data(ticker_symbol, data, db_path=None):
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             row["id"],
-            data.get("current_price") or None,
-            data.get("target_mean") or None,
-            data.get("target_low") or None,
-            data.get("target_high") or None,
-            data.get("upside") or None,
-            data.get("n_analysts") or None,
-            data.get("strong_buy") or None,
-            data.get("buy") or None,
-            data.get("hold") or None,
-            data.get("sell") or None,
-            data.get("strong_sell") or None,
+            _num(data.get("current_price")),
+            _num(data.get("target_mean")),
+            _num(data.get("target_low")),
+            _num(data.get("target_high")),
+            _num(data.get("upside")),
+            _num(data.get("n_analysts")),
+            _num(data.get("strong_buy")),
+            _num(data.get("buy")),
+            _num(data.get("hold")),
+            _num(data.get("sell")),
+            _num(data.get("strong_sell")),
             data.get("updated") or datetime.now().strftime("%Y-%m-%d %H:%M"),
             data.get("status"),
-            data.get("market_cap") or None,
-            data.get("trailing_pe") or None,
-            data.get("forward_pe") or None,
-            data.get("price_to_book") or None,
-            data.get("fifty_day_avg") or None,
-            data.get("two_hundred_day_avg") or None,
-            data.get("fifty_two_week_high") or None,
-            data.get("fifty_two_week_low") or None,
-            data.get("beta") or None,
-            data.get("dividend_yield") or None,
+            _num(data.get("market_cap")),
+            _num(data.get("trailing_pe")),
+            _num(data.get("forward_pe")),
+            _num(data.get("price_to_book")),
+            _num(data.get("fifty_day_avg")),
+            _num(data.get("two_hundred_day_avg")),
+            _num(data.get("fifty_two_week_high")),
+            _num(data.get("fifty_two_week_low")),
+            _num(data.get("beta")),
+            _num(data.get("dividend_yield")),
         ))
         conn.commit()
     finally:

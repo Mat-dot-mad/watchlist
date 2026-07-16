@@ -266,8 +266,10 @@
         rows.sort(function(a, b) {
             var av, bv;
             if (type === 'num') {
-                av = parseFloat(a.children[col].dataset.val) || -Infinity;
-                bv = parseFloat(b.children[col].dataset.val) || -Infinity;
+                av = parseFloat(a.children[col].dataset.val);
+                bv = parseFloat(b.children[col].dataset.val);
+                if (isNaN(av)) av = -Infinity;
+                if (isNaN(bv)) bv = -Infinity;
             } else {
                 av = a.children[col].textContent.trim().toLowerCase();
                 bv = b.children[col].textContent.trim().toLowerCase();

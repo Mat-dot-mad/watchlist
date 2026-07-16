@@ -74,13 +74,14 @@
                 <th class="sortable" data-col="3" data-type="num">Target</th>
                 <th>Sentiment</th>
                 <th class="sortable" data-col="5" data-type="num">Upside %</th>
-                <th class="sortable" data-col="6" data-type="num">P/E</th>
-                <th class="sortable" data-col="7" data-type="num"># Analysts</th>
-                <th class="sortable" data-col="8" data-type="num">Strong Buy</th>
-                <th class="sortable" data-col="9" data-type="num">Buy</th>
-                <th class="sortable" data-col="10" data-type="num">Hold</th>
-                <th class="sortable" data-col="11" data-type="num">Sell</th>
-                <th class="sortable" data-col="12" data-type="num">Strong Sell</th>
+                <th class="sortable" data-col="6" data-type="num" title="Distance from 52-week high">Off High %</th>
+                <th class="sortable" data-col="7" data-type="num">P/E</th>
+                <th class="sortable" data-col="8" data-type="num"># Analysts</th>
+                <th class="sortable" data-col="9" data-type="num">Strong Buy</th>
+                <th class="sortable" data-col="10" data-type="num">Buy</th>
+                <th class="sortable" data-col="11" data-type="num">Hold</th>
+                <th class="sortable" data-col="12" data-type="num">Sell</th>
+                <th class="sortable" data-col="13" data-type="num">Strong Sell</th>
                 <th>Status</th>
                 <th></th>
             </tr>
@@ -109,6 +110,12 @@
                 <td data-val="{{ row.upside if row.upside is not none else '' }}" class="{% if row.upside is not none %}{{ 'positive' if row.upside > 0 else 'negative' }}{% endif %}">
                     {{ (row.upside ~ '%') if row.upside is not none else '—' }}
                 </td>
+                {% if row.current_price and row.fifty_two_week_high %}
+                {% set off_high = ((row.current_price / row.fifty_two_week_high - 1) * 100)|round(1) %}
+                <td data-val="{{ off_high }}" class="{{ 'positive' if off_high >= 0 else '' }}">{{ off_high }}%</td>
+                {% else %}
+                <td data-val="">—</td>
+                {% endif %}
                 <td data-val="{{ row.trailing_pe or '' }}">{{ row.trailing_pe|fmt_val if row.trailing_pe else '—' }}</td>
                 <td data-val="{{ row.n_analysts if row.n_analysts is not none else '' }}">{{ row.n_analysts if row.n_analysts is not none else '—' }}</td>
                 <td data-val="{{ row.strong_buy if row.strong_buy is not none else '' }}">{{ row.strong_buy if row.strong_buy is not none else '—' }}</td>

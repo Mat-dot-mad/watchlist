@@ -1,0 +1,5 @@
+# Development-only dependencies. Not needed to run the app, so the Pi
+# never installs these — it only uses requirements.txt.
+#   pip install -r requirements-dev.txt
+-r requirements.txt
+pytest

@@ -85,6 +85,34 @@ To trigger a refresh manually without waiting for the daily schedule, click "Ref
 
 ---
 
+## Tests
+
+```bash
+pip install -r requirements-dev.txt   # once
+pytest                                # run everything
+```
+
+Run this after changing anything, before pushing to the Pi. The suite is
+fast (well under a second) and needs no network — it builds a throwaway
+SQLite database per test and never touches the real one.
+
+What it covers, and why those things:
+
+- **`tests/test_db.py`** — storage rules that are easy to break silently:
+  zeros must stay zeros (not become NULL), `get_latest_data` must return
+  the newest snapshot per ticker, deleting a ticker must cascade away its
+  data, saving a sparkline twice must replace rather than duplicate.
+- **`tests/test_dashboard.py`** — routes, the login wall, and table
+  structure. The important ones assert that every row has exactly as many
+  cells as there are headers, and that each sortable column's `data-col`
+  matches its real position. A dropped `<td>` raises no error; it just
+  shifts every later value under the wrong heading, which these catch.
+
+Tests take a `db_path` / use a temp directory rather than the configured
+database, so running them is always safe.
+
+---
+
 ## Production deployment (high level)
 
 The current production target is a Raspberry Pi on the home LAN, reachable only over Tailscale.

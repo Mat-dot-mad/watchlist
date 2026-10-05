@@ -1,12 +1,9 @@
-import hmac
 import logging
 import os
 import threading
-from datetime import timedelta
-from functools import wraps
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 from markupsafe import Markup
 
 import db
@@ -16,16 +13,6 @@ log = logging.getLogger(__name__)
 
 _refreshing = False
 _refresh_lock = threading.Lock()
-
-
-def login_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        password = os.environ.get("DASHBOARD_PASSWORD")
-        if password and not session.get("authenticated"):
-            return redirect(url_for("login"))
-        return f(*args, **kwargs)
-    return decorated
 
 
 def _save_ticker_data(data):
@@ -69,8 +56,8 @@ def refresh_all_data():
 
 def create_app():
     app = Flask(__name__)
+    # Signs the session cookie that carries flash() messages between requests.
     app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))
-    app.permanent_session_lifetime = timedelta(days=30)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -185,29 +172,9 @@ def create_app():
         }
         return symbols.get(currency_code, f"{currency_code} " if currency_code else "$")
 
-    # Routes
-    @app.route("/login", methods=["GET", "POST"])
-    def login():
-        password = os.environ.get("DASHBOARD_PASSWORD")
-        if not password:
-            return redirect(url_for("dashboard"))
-
-        if request.method == "POST":
-            if hmac.compare_digest(request.form.get("password", ""), password):
-                session.permanent = True
-                session["authenticated"] = True
-                return redirect(url_for("dashboard"))
-            flash("Wrong password.", "error")
-
-        return render_template("login.html")
-
-    @app.route("/logout")
-    def logout():
-        session.clear()
-        return redirect(url_for("login"))
-
+    # Routes. There is no login: access control is the network itself
+    # (reachable only over Tailscale; UFW blocks every other interface).
     @app.route("/")
-    @login_required
     def dashboard():
         data = db.get_latest_data()
         last_updated = db.get_last_updated()
@@ -219,7 +186,6 @@ def create_app():
                                trends=trends, rec_cache=rec_cache, sparklines=sparklines)
 
     @app.route("/ticker/<symbol>")
-    @login_required
     def ticker_detail(symbol):
         symbol = symbol.upper()
         detail = db.get_ticker_detail(symbol)
@@ -230,7 +196,6 @@ def create_app():
         return render_template("ticker_detail.html", detail=detail, live=live, symbol=symbol)
 
     @app.route("/refresh", methods=["POST"])
-    @login_required
     def refresh():
         if not _refreshing:
             thread = threading.Thread(target=refresh_all_data, daemon=True)
@@ -241,7 +206,6 @@ def create_app():
         return redirect(url_for("dashboard"))
 
     @app.route("/ticker/add", methods=["POST"])
-    @login_required
     def add_ticker():
         symbol = request.form.get("symbol", "").strip().upper()
         if symbol:
@@ -256,7 +220,6 @@ def create_app():
         return redirect(url_for("dashboard"))
 
     @app.route("/ticker/<symbol>/remove", methods=["POST"])
-    @login_required
     def remove_ticker(symbol):
         db.remove_ticker(symbol)
         db.export_tickers_to_file()
@@ -264,12 +227,10 @@ def create_app():
         return redirect(url_for("dashboard"))
 
     @app.route("/api/status")
-    @login_required
     def status():
         return jsonify(refreshing=_refreshing, last_updated=db.get_last_updated())
 
     @app.route("/api/search")
-    @login_required
     def search_tickers():
         q = request.args.get("q", "").strip()
         if len(q) < 1:

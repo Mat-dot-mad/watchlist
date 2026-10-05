@@ -46,31 +46,16 @@ def test_status_endpoint_returns_json(client):
     assert "refreshing" in resp.get_json()
 
 
-def test_login_is_required_when_a_password_is_set(client, monkeypatch):
-    """With DASHBOARD_PASSWORD set, an unauthenticated visit must redirect."""
+def test_no_login_wall_even_if_old_password_env_var_is_set(client, monkeypatch):
+    """Access control is the network (Tailscale), not the app.
+
+    The Pi's env file may still contain DASHBOARD_PASSWORD from before the
+    login was removed; it must have no effect.
+    """
     monkeypatch.setenv("DASHBOARD_PASSWORD", "hunter2")
 
-    resp = client.get("/")
-
-    assert resp.status_code == 302
-    assert "/login" in resp.headers["Location"]
-
-
-def test_correct_password_grants_access(client, monkeypatch):
-    monkeypatch.setenv("DASHBOARD_PASSWORD", "hunter2")
-
-    resp = client.post("/login", data={"password": "hunter2"})
-
-    assert resp.status_code == 302
-    assert "/login" not in resp.headers["Location"]
-
-
-def test_wrong_password_is_rejected(client, monkeypatch):
-    monkeypatch.setenv("DASHBOARD_PASSWORD", "hunter2")
-
-    resp = client.post("/login", data={"password": "wrong"}, follow_redirects=True)
-
-    assert "Wrong password" in resp.get_data(as_text=True)
+    assert client.get("/").status_code == 200
+    assert client.get("/login").status_code == 404
 
 
 # ── Table structure ──────────────────────────────────────────────────

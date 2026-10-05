@@ -89,7 +89,7 @@ main {
     gap: 0.5rem;
 }
 
-.add-form input, .login-card input {
+.add-form input {
     background: #0d1117;
     border: 1px solid #30363d;
     border-radius: 6px;
@@ -98,7 +98,7 @@ main {
     font-size: 0.875rem;
 }
 
-.add-form input:focus, .login-card input:focus {
+.add-form input:focus {
     outline: none;
     border-color: #1f6feb;
     box-shadow: 0 0 0 2px rgba(31, 111, 235, 0.3);
@@ -312,27 +312,6 @@ tr:hover td { background: #161b22; }
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
-
-/* Login */
-.login-card {
-    max-width: 360px;
-    margin: 4rem auto;
-    background: #161b22;
-    border: 1px solid #30363d;
-    border-radius: 8px;
-    padding: 2rem;
-    text-align: center;
-}
-
-.login-card h2 { margin-bottom: 1.5rem; font-size: 1.2rem; }
-
-.login-card input {
-    width: 100%;
-    padding: 0.6rem 0.75rem;
-    margin-bottom: 1rem;
-}
-
-.login-card .btn { width: 100%; justify-content: center; }
 
 /* Empty state */
 .empty {

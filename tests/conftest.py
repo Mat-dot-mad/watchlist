@@ -45,9 +45,6 @@ def client(tmp_path, monkeypatch):
     # a *relative* path. Run from the temp directory so tests start empty
     # instead of loading the repo's real 38-ticker list.
     monkeypatch.chdir(tmp_path)
-    # No password set => the login wall is skipped, which is what most
-    # tests want. test_login_required sets one explicitly to test the wall.
-    monkeypatch.delenv("DASHBOARD_PASSWORD", raising=False)
 
     from app import create_app
     app = create_app()

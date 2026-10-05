@@ -13,7 +13,7 @@ Originally deployed on Railway, currently self-hosted on a Raspberry Pi reachabl
 - **Per-ticker detail page** — analyst upgrade/downgrade history, recommendation trend over the last 4 months, 1-year price chart, EPS estimates vs. actuals, and revenue/earnings history.
 - **Add / remove tickers** through the UI; the list is mirrored to `tickers.txt` so it survives a database wipe.
 - **Manual refresh** button for ad-hoc updates outside the schedule.
-- **Login wall** — single shared password (`DASHBOARD_PASSWORD`). If unset, the login is skipped (only safe behind Tailscale or on localhost).
+- **No login** — the app has no authentication of its own. Access control is the network: it must only ever be reachable over a private network (Tailscale) or localhost. Never expose it to the public internet.
 
 ---
 
@@ -36,7 +36,7 @@ Originally deployed on Railway, currently self-hosted on a Raspberry Pi reachabl
 ├── db.py                   # SQLite schema, queries, ticker import/export helpers
 ├── requirements.txt
 ├── tickers.txt             # Plain list of ticker symbols, one per line
-├── templates/              # Jinja2 templates (base, dashboard, ticker_detail, login)
+├── templates/              # Jinja2 templates (base, dashboard, ticker_detail)
 └── static/                 # CSS + JS for the dashboard
 ```
 
@@ -47,8 +47,7 @@ Originally deployed on Railway, currently self-hosted on a Raspberry Pi reachabl
 | Variable | Required? | Purpose |
 |---|---|---|
 | `PORT` | no (default `5000`) | Port gunicorn binds to. |
-| `SECRET_KEY` | yes (production) | Flask session signing key. Generate with `python3 -c 'import secrets; print(secrets.token_hex(32))'`. |
-| `DASHBOARD_PASSWORD` | recommended | Password for the `/login` page. If unset, login is bypassed — only safe on localhost or behind a VPN. |
+| `SECRET_KEY` | yes (production) | Signs the cookie that carries flash messages ("Added AAPL."). Generate with `python3 -c 'import secrets; print(secrets.token_hex(32))'`. |
 | `DATABASE_PATH` | no (default `watchlist.db` next to `app.py`) | Where the SQLite file lives. In production, point this somewhere persistent like `/var/lib/watchlist/watchlist.db`. |
 | `REFRESH_HOUR` | no (default `5`) | Hour of day (0–23, server local time) the auto-refresh runs. |
 | `TICKERS_FILE` | no (default `tickers.txt`) | Where the app writes the ticker list when you add/remove tickers. In production, point it outside the git clone (e.g. `/var/lib/watchlist/tickers.txt`) — otherwise the app modifies a git-tracked file and the next `git pull` will refuse to run. The repo's `tickers.txt` is still used as a seed on a fresh, empty database. |
@@ -73,7 +72,6 @@ pip install -r requirements.txt
 
 # 4. Set the minimum env vars and run
 export SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
-export DASHBOARD_PASSWORD=devpass    # or unset for no login during dev
 python app.py
 ```
 
@@ -102,7 +100,7 @@ What it covers, and why those things:
   zeros must stay zeros (not become NULL), `get_latest_data` must return
   the newest snapshot per ticker, deleting a ticker must cascade away its
   data, saving a sparkline twice must replace rather than duplicate.
-- **`tests/test_dashboard.py`** — routes, the login wall, and table
+- **`tests/test_dashboard.py`** — routes and table
   structure. The important ones assert that every row has exactly as many
   cells as there are headers, and that each sortable column's `data-col`
   matches its real position. A dropped `<td>` raises no error; it just

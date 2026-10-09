@@ -146,7 +146,7 @@ main {
 }
 
 /* Per-row list membership picker */
-.lists-cell { min-width: 6rem; }
+.lists-cell { white-space: normal; min-width: 5.5rem; }
 .lists-picker summary { cursor: pointer; list-style: none; }
 .lists-picker summary::-webkit-details-marker { display: none; }
 .lists-picker form {
@@ -308,12 +308,17 @@ thead {
     z-index: 1;
 }
 
+/* Headers may wrap ("Strong / Buy") so a column is only as wide as its
+   data, not its label. Auto table layout wraps only when space runs out,
+   so on wide screens headers stay on one line. */
 th {
     background: #161b22;
-    padding: 0.6rem 0.75rem;
+    padding: 0.6rem 0.5rem;
     text-align: left;
     font-weight: 600;
-    white-space: nowrap;
+    white-space: normal;
+    vertical-align: bottom;
+    line-height: 1.25;
     border-bottom: 2px solid #30363d;
     font-size: 0.7rem;
     text-transform: uppercase;
@@ -331,7 +336,7 @@ th.sort-desc::after { content: ' ▼'; font-size: 0.55rem; }
 .sparkline { display: block; }
 
 td {
-    padding: 0.5rem 0.75rem;
+    padding: 0.5rem 0.5rem;
     border-bottom: 1px solid #21262d;
     white-space: nowrap;
 }
@@ -344,6 +349,7 @@ tr:hover td { background: #161b22; }
 
 .sector-label {
     display: block;
+    white-space: normal;
     font-size: 0.65rem;
     font-weight: 400;
     color: #8b949e;
@@ -366,9 +372,7 @@ tr:hover td { background: #161b22; }
     font-weight: 600;
 }
 
-.badge-ok { background: #0d2818; color: #3fb950; }
 .badge-err { background: #2d1215; color: #f85149; }
-.badge-pending { color: #8b949e; }
 
 /* Rating badges */
 .rating-badge, .rating-badge-sm {

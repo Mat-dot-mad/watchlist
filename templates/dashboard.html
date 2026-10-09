@@ -105,8 +105,8 @@
                 <th class="sortable" data-col="2" data-type="num">Price</th>
                 <th class="sortable" data-col="3" data-type="num">Target</th>
                 <th>Sentiment</th>
-                <th class="sortable" data-col="5" data-type="num">Upside %</th>
-                <th class="sortable" data-col="6" data-type="num" title="Distance from 52-week high">Off High %</th>
+                <th class="sortable" data-col="5" data-type="num">Upside&nbsp;%</th>
+                <th class="sortable" data-col="6" data-type="num" title="Distance from 52-week high">Off High&nbsp;%</th>
                 <th class="sortable" data-col="7" data-type="num">P/E</th>
                 <th class="sortable" data-col="8" data-type="num"># Analysts</th>
                 <th class="sortable" data-col="9" data-type="num">Strong Buy</th>
@@ -114,7 +114,6 @@
                 <th class="sortable" data-col="11" data-type="num">Hold</th>
                 <th class="sortable" data-col="12" data-type="num">Sell</th>
                 <th class="sortable" data-col="13" data-type="num">Strong Sell</th>
-                <th>Status</th>
                 <th>Lists</th>
                 <th></th>
             </tr>
@@ -125,6 +124,11 @@
             <tr id="row-{{ row.symbol }}">
                 <td class="ticker">
                     <a href="{{ url_for('ticker_detail', symbol=row.symbol) }}">{{ row.symbol }}</a>
+                    {# Fetch errors flag the ticker itself; a Status column that
+                       says "OK" on every row cost a column for no information. #}
+                    {% if row.status and row.status != 'OK' %}
+                    <span class="badge badge-err" title="{{ row.status }}">ERR</span>
+                    {% endif %}
                     {% if row.sector %}
                     <span class="sector-label">{{ row.sector }}</span>
                     {% endif %}
@@ -156,15 +160,6 @@
                 <td data-val="{{ row.hold if row.hold is not none else '' }}">{{ row.hold if row.hold is not none else '—' }}</td>
                 <td data-val="{{ row.sell if row.sell is not none else '' }}">{{ row.sell if row.sell is not none else '—' }}</td>
                 <td data-val="{{ row.strong_sell if row.strong_sell is not none else '' }}">{{ row.strong_sell if row.strong_sell is not none else '—' }}</td>
-                <td>
-                    {% if row.status == 'OK' %}
-                        <span class="badge badge-ok">OK</span>
-                    {% elif row.status %}
-                        <span class="badge badge-err" title="{{ row.status }}">ERR</span>
-                    {% else %}
-                        <span class="badge badge-pending">—</span>
-                    {% endif %}
-                </td>
                 <td class="lists-cell">
                     {% if watchlists %}
                     {# <details> is HTML's built-in expand/collapse: no JS needed. #}

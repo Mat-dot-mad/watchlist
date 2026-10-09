@@ -180,6 +180,11 @@ def create_app():
         """
         return redirect(url_for("dashboard", list=request.form.get("list") or None))
 
+    def _form_list():
+        """The list whose tab a form was submitted from, or None (All/Unsorted)."""
+        raw = request.form.get("list")
+        return next((w for w in db.list_watchlists() if str(w["id"]) == raw), None)
+
     # Routes. There is no login: access control is the network itself
     # (reachable only over Tailscale; UFW blocks every other interface).
     @app.route("/")
@@ -207,7 +212,8 @@ def create_app():
                                sparklines=db.get_all_sparklines(),
                                watchlists=watchlists, current=current, view=view,
                                total_count=len(db.list_tickers()),
-                               unsorted_count=db.count_unsorted())
+                               unsorted_count=db.count_unsorted(),
+                               memberships=db.get_memberships())
 
     @app.route("/lists/new", methods=["POST"])
     def new_list():
@@ -217,6 +223,30 @@ def create_app():
             flash(f'A list called "{name}" already exists.' if name else "List name can't be blank.", "error")
             return _back()
         return redirect(url_for("dashboard", list=list_id))
+
+    @app.route("/lists/<int:list_id>/rename", methods=["POST"])
+    def rename_list(list_id):
+        name = request.form.get("name", "").strip()
+        if not db.rename_watchlist(list_id, name):
+            flash(f'A list called "{name}" already exists.' if name else "List name can't be blank.", "error")
+        return redirect(url_for("dashboard", list=list_id))
+
+    @app.route("/lists/<int:list_id>/delete", methods=["POST"])
+    def delete_list(list_id):
+        doomed = next((w for w in db.list_watchlists() if w["id"] == list_id), None)
+        if doomed:
+            db.delete_watchlist(list_id)
+            flash(f"Deleted the {doomed['name']} list. Its tickers are still under All.", "success")
+        return redirect(url_for("dashboard"))
+
+    @app.route("/ticker/<symbol>/lists", methods=["POST"])
+    def set_ticker_lists(symbol):
+        # The checkboxes are the complete desired set, so replace rather than diff.
+        ids = [int(i) for i in request.form.getlist("lists") if i.isdigit()]
+        db.set_ticker_watchlists(symbol.upper(), ids)
+        # Land back on the same row rather than the top of a 50-row table.
+        return redirect(url_for("dashboard", list=request.form.get("list") or None,
+                                _anchor=f"row-{symbol.upper()}"))
 
     @app.route("/ticker/<symbol>")
     def ticker_detail(symbol):
@@ -243,8 +273,7 @@ def create_app():
         # Adding while viewing a list also puts the ticker in that list —
         # including an existing ticker, which is how you add it to a second list.
         symbol = request.form.get("symbol", "").strip().upper()
-        target = next((w for w in db.list_watchlists()
-                       if str(w["id"]) == request.form.get("list")), None)
+        target = _form_list()
         if symbol:
             is_new = db.add_ticker(symbol)
             if is_new:
@@ -265,10 +294,17 @@ def create_app():
 
     @app.route("/ticker/<symbol>/remove", methods=["POST"])
     def remove_ticker(symbol):
-        db.remove_ticker(symbol)
-        db.export_tickers_to_file()
-        flash(f"Removed {symbol}.", "success")
-        return redirect(url_for("dashboard"))
+        # Playlist semantics: on a list tab, ✕ only takes the ticker out of
+        # that list; on All/Unsorted it deletes the ticker everywhere.
+        target = _form_list()
+        if target:
+            db.remove_ticker_from_watchlist(symbol, target["id"])
+            flash(f"Removed {symbol} from {target['name']}.", "success")
+        else:
+            db.remove_ticker(symbol)
+            db.export_tickers_to_file()
+            flash(f"Deleted {symbol}.", "success")
+        return _back()
 
     @app.route("/api/status")
     def status():

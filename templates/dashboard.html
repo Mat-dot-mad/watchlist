@@ -9,6 +9,21 @@
     {% if watchlists and (unsorted_count or view == 'unsorted') %}
     <a href="{{ url_for('dashboard', list='unsorted') }}" class="tab tab-muted{% if view == 'unsorted' %} active{% endif %}">Unsorted <span class="tab-count">{{ unsorted_count }}</span></a>
     {% endif %}
+    {% if current %}
+    <details class="list-edit">
+        <summary>Edit list</summary>
+        <div class="list-edit-panel">
+            <form method="POST" action="{{ url_for('rename_list', list_id=current.id) }}" class="inline">
+                <input type="text" name="name" value="{{ current.name }}" maxlength="40" required aria-label="List name">
+                <button type="submit" class="btn btn-small">Rename</button>
+            </form>
+            <form method="POST" action="{{ url_for('delete_list', list_id=current.id) }}" class="inline"
+                  onsubmit='return confirm({{ ("Delete the " ~ current.name ~ " list? Its tickers stay under All.")|tojson }})'>
+                <button type="submit" class="btn btn-danger btn-small">Delete list</button>
+            </form>
+        </div>
+    </details>
+    {% endif %}
     <form method="POST" action="{{ url_for('new_list') }}" class="tab-new">
         <input type="hidden" name="list" value="{{ view }}">
         <input type="text" name="name" placeholder="+ New list" maxlength="40" required aria-label="New list name">
@@ -100,13 +115,14 @@
                 <th class="sortable" data-col="12" data-type="num">Sell</th>
                 <th class="sortable" data-col="13" data-type="num">Strong Sell</th>
                 <th>Status</th>
+                <th>Lists</th>
                 <th></th>
             </tr>
         </thead>
         <tbody>
             {% for row in stocks %}
             {% set cs = row.currency|cur_sym %}
-            <tr>
+            <tr id="row-{{ row.symbol }}">
                 <td class="ticker">
                     <a href="{{ url_for('ticker_detail', symbol=row.symbol) }}">{{ row.symbol }}</a>
                     {% if row.sector %}
@@ -149,10 +165,34 @@
                         <span class="badge badge-pending">—</span>
                     {% endif %}
                 </td>
+                <td class="lists-cell">
+                    {% if watchlists %}
+                    {# <details> is HTML's built-in expand/collapse: no JS needed. #}
+                    {% set mine = memberships.get(row.symbol, []) %}
+                    <details class="lists-picker">
+                        <summary>
+                            {%- for w in watchlists if w.id in mine %}<span class="list-chip">{{ w.name }}</span>{% else %}<span class="list-chip list-chip-empty">+ Add</span>{% endfor -%}
+                        </summary>
+                        <form method="POST" action="{{ url_for('set_ticker_lists', symbol=row.symbol) }}">
+                            <input type="hidden" name="list" value="{{ view }}">
+                            {% for w in watchlists %}
+                            <label><input type="checkbox" name="lists" value="{{ w.id }}"{% if w.id in mine %} checked{% endif %}> {{ w.name }}</label>
+                            {% endfor %}
+                            <button type="submit" class="btn btn-primary btn-small">Save</button>
+                        </form>
+                    </details>
+                    {% else %}
+                    <span class="no-data">—</span>
+                    {% endif %}
+                </td>
                 <td>
+                    {# Single-quoted attribute + |tojson: the safe way to put
+                       user text (list names may contain quotes) into inline JS. #}
+                    {% set msg = ('Remove ' ~ row.symbol ~ ' from ' ~ current.name ~ '?') if current else ('Delete ' ~ row.symbol ~ ' from every list?') %}
                     <form method="POST" action="{{ url_for('remove_ticker', symbol=row.symbol) }}" class="inline"
-                          onsubmit="return confirm('Remove {{ row.symbol }}?')">
-                        <button type="submit" class="btn btn-danger btn-small">&times;</button>
+                          onsubmit='return confirm({{ msg|tojson }})'>
+                        <input type="hidden" name="list" value="{{ view }}">
+                        <button type="submit" class="btn btn-danger btn-small" title="{{ msg }}">&times;</button>
                     </form>
                 </td>
             </tr>

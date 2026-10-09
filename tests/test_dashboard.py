@@ -193,3 +193,76 @@ def test_refresh_returns_to_the_same_tab(client):
     resp = client.post("/refresh", data={"list": "1"})
 
     assert resp.headers["Location"].endswith("/?list=1")
+
+
+# ── Managing lists ───────────────────────────────────────────────────
+
+def test_saving_checkboxes_sets_a_tickers_lists(client):
+    _add_stock(symbol="NVDA")
+    ai = db.create_watchlist("AI")
+    semis = db.create_watchlist("Semis")
+
+    resp = client.post("/ticker/NVDA/lists", data={"lists": [str(ai), str(semis)]})
+
+    assert db.get_memberships() == {"NVDA": {ai, semis}}
+    assert resp.headers["Location"].endswith("#row-NVDA")   # back to the same row
+
+
+def test_unticking_everything_makes_a_ticker_unsorted(client):
+    _add_stock(symbol="NVDA")
+    ai = db.create_watchlist("AI")
+    db.add_ticker_to_watchlist("NVDA", ai)
+
+    client.post("/ticker/NVDA/lists", data={})
+
+    assert db.count_unsorted() == 1
+    assert db.list_tickers() == ["NVDA"]
+
+
+def test_x_on_a_list_tab_only_removes_from_that_list(client):
+    _add_stock(symbol="NVDA")
+    ai = db.create_watchlist("AI")
+    db.add_ticker_to_watchlist("NVDA", ai)
+
+    client.post("/ticker/NVDA/remove", data={"list": str(ai)})
+
+    assert db.list_tickers() == ["NVDA"]       # still exists
+    assert db.get_memberships() == {}           # but not in AI
+
+
+def test_x_on_the_all_tab_deletes_the_ticker(client):
+    _add_stock(symbol="NVDA")
+    db.add_ticker_to_watchlist("NVDA", db.create_watchlist("AI"))
+
+    client.post("/ticker/NVDA/remove", data={"list": ""})
+
+    assert db.list_tickers() == []
+
+
+def test_rename_and_delete_a_list(client):
+    _add_stock(symbol="NVDA")
+    ai = db.create_watchlist("AI")
+    db.add_ticker_to_watchlist("NVDA", ai)
+
+    client.post(f"/lists/{ai}/rename", data={"name": "AI & Data"})
+    assert db.list_watchlists()[0]["name"] == "AI & Data"
+
+    client.post(f"/lists/{ai}/delete")
+    assert db.list_watchlists() == []
+    assert db.list_tickers() == ["NVDA"]        # deleting a list keeps tickers
+
+
+def test_list_names_with_quotes_are_safe_in_confirm_dialogs(client):
+    """List names reach inline JavaScript in onsubmit handlers. A name like
+    Mat's "best" </script> must not break the page or inject markup."""
+    _add_stock(symbol="NVDA")
+    wid = db.create_watchlist('Mat\'s "best" </script>')
+    db.add_ticker_to_watchlist("NVDA", wid)
+
+    body = client.get(f"/?list={wid}").get_data(as_text=True)
+
+    assert "</script>\"" not in body and "best\" </script>" not in body
+    handlers = re.findall(r"onsubmit='return confirm\(([^']*)\)'", body)
+    assert handlers, "expected single-quoted confirm handlers"
+    for h in handlers:
+        assert "'" not in h and "<" not in h    # tojson escaped them

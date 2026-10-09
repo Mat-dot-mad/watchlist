@@ -12,6 +12,7 @@ Originally deployed on Railway, currently self-hosted on a Raspberry Pi reachabl
 - **Dashboard** — a sortable table with current price, target price, upside %, analyst sentiment bar, 30-day sparkline, and key fundamentals.
 - **Per-ticker detail page** — analyst upgrade/downgrade history, recommendation trend over the last 4 months, 1-year price chart, EPS estimates vs. actuals, and revenue/earnings history.
 - **Add / remove tickers** through the UI; the list is mirrored to `tickers.txt` so it survives a database wipe.
+- **Watchlists as tabs** — group tickers into named lists (`All · AI · Software · …`). A ticker can be in several lists; each tab is a bookmarkable `?list=<id>` URL. An *Unsorted* tab shows tickers in no list. Lists only filter the view: the daily refresh fetches every ticker once regardless, and deleting a list never deletes its tickers. On a list tab, ✕ removes the ticker from that list only; on *All* it deletes the ticker.
 - **Manual refresh** button for ad-hoc updates outside the schedule.
 - **No login** — the app has no authentication of its own. Access control is the network: it must only ever be reachable over a private network (Tailscale) or localhost. Never expose it to the public internet.
 

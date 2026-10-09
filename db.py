@@ -100,6 +100,28 @@ def _migrate_db(db_path=None):
             )
         """)
 
+        # Watchlists: named groupings of tickers. Many-to-many — a ticker can
+        # sit in several lists — so membership lives in a join table rather
+        # than a column on tickers. The composite primary key stops the same
+        # ticker being added to the same list twice. Lists only filter what
+        # the dashboard shows; fetching is still once per ticker.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS watchlists (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL COLLATE NOCASE
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS watchlist_tickers (
+                watchlist_id INTEGER NOT NULL REFERENCES watchlists(id) ON DELETE CASCADE,
+                ticker_id INTEGER NOT NULL REFERENCES tickers(id) ON DELETE CASCADE,
+                PRIMARY KEY (watchlist_id, ticker_id)
+            )
+        """)
+        # The primary key index starts with watchlist_id; this one serves the
+        # reverse lookup ("which lists is NVDA in?").
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_wt_ticker ON watchlist_tickers(ticker_id)")
+
         conn.commit()
     finally:
         conn.close()
@@ -292,10 +314,20 @@ def get_all_sparklines(db_path=None):
         conn.close()
 
 
-def get_latest_data(db_path=None):
+def get_latest_data(db_path=None, watchlist_id=None, unsorted=False):
+    """Latest snapshot per ticker. Pass watchlist_id to limit to one list,
+    or unsorted=True for tickers that are in no list. Default: all tickers."""
+    if watchlist_id is not None:
+        where = "WHERE t.id IN (SELECT ticker_id FROM watchlist_tickers WHERE watchlist_id = ?)"
+        params = (watchlist_id,)
+    elif unsorted:
+        where = "WHERE t.id NOT IN (SELECT ticker_id FROM watchlist_tickers)"
+        params = ()
+    else:
+        where, params = "", ()
     conn = get_db(db_path)
     try:
-        rows = conn.execute("""
+        rows = conn.execute(f"""
             SELECT t.symbol, t.sector, t.long_name, t.currency,
                    sd.current_price, sd.target_mean, sd.target_low,
                    sd.target_high, sd.upside, sd.n_analysts, sd.strong_buy,
@@ -311,9 +343,140 @@ def get_latest_data(db_path=None):
                 ORDER BY updated_at DESC
                 LIMIT 1
             )
+            {where}
             ORDER BY t.symbol
+        """, params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+# ── Watchlists ───────────────────────────────────────────────────────
+
+def list_watchlists(db_path=None):
+    """All lists in creation order, each with its ticker count."""
+    conn = get_db(db_path)
+    try:
+        rows = conn.execute("""
+            SELECT w.id, w.name, COUNT(wt.ticker_id) AS count
+            FROM watchlists w
+            LEFT JOIN watchlist_tickers wt ON wt.watchlist_id = w.id
+            GROUP BY w.id
+            ORDER BY w.id
         """).fetchall()
         return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def count_unsorted(db_path=None):
+    conn = get_db(db_path)
+    try:
+        return conn.execute("""
+            SELECT COUNT(*) FROM tickers
+            WHERE id NOT IN (SELECT ticker_id FROM watchlist_tickers)
+        """).fetchone()[0]
+    finally:
+        conn.close()
+
+
+def create_watchlist(name, db_path=None):
+    """Returns the new list's id, or None if the name is blank or taken."""
+    name = name.strip()
+    if not name:
+        return None
+    conn = get_db(db_path)
+    try:
+        cur = conn.execute("INSERT OR IGNORE INTO watchlists (name) VALUES (?)", (name,))
+        conn.commit()
+        return cur.lastrowid if cur.rowcount else None
+    finally:
+        conn.close()
+
+
+def rename_watchlist(watchlist_id, name, db_path=None):
+    """Returns False if the name is blank or already used by another list."""
+    name = name.strip()
+    if not name:
+        return False
+    conn = get_db(db_path)
+    try:
+        cur = conn.execute("UPDATE OR IGNORE watchlists SET name = ? WHERE id = ?", (name, watchlist_id))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def delete_watchlist(watchlist_id, db_path=None):
+    """Deletes the list only; its tickers stay (memberships cascade away)."""
+    conn = get_db(db_path)
+    try:
+        conn.execute("DELETE FROM watchlists WHERE id = ?", (watchlist_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_memberships(db_path=None):
+    """{symbol: {watchlist_id, ...}} for every ticker that is in a list."""
+    conn = get_db(db_path)
+    try:
+        rows = conn.execute("""
+            SELECT t.symbol, wt.watchlist_id
+            FROM watchlist_tickers wt
+            JOIN tickers t ON t.id = wt.ticker_id
+        """).fetchall()
+        result = {}
+        for r in rows:
+            result.setdefault(r["symbol"], set()).add(r["watchlist_id"])
+        return result
+    finally:
+        conn.close()
+
+
+def set_ticker_watchlists(symbol, watchlist_ids, db_path=None):
+    """Replace a ticker's memberships with exactly the given list ids."""
+    conn = get_db(db_path)
+    try:
+        row = conn.execute("SELECT id FROM tickers WHERE symbol = ?", (symbol,)).fetchone()
+        if not row:
+            return
+        conn.execute("DELETE FROM watchlist_tickers WHERE ticker_id = ?", (row["id"],))
+        # INSERT ... SELECT skips ids of lists that don't exist (e.g. deleted
+        # in another tab) instead of failing on the foreign key.
+        for wid in set(watchlist_ids):
+            conn.execute("""
+                INSERT INTO watchlist_tickers (watchlist_id, ticker_id)
+                SELECT id, ? FROM watchlists WHERE id = ?
+            """, (row["id"], wid))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def add_ticker_to_watchlist(symbol, watchlist_id, db_path=None):
+    conn = get_db(db_path)
+    try:
+        conn.execute("""
+            INSERT OR IGNORE INTO watchlist_tickers (watchlist_id, ticker_id)
+            SELECT w.id, t.id FROM watchlists w, tickers t
+            WHERE w.id = ? AND t.symbol = ?
+        """, (watchlist_id, symbol))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def remove_ticker_from_watchlist(symbol, watchlist_id, db_path=None):
+    conn = get_db(db_path)
+    try:
+        conn.execute("""
+            DELETE FROM watchlist_tickers
+            WHERE watchlist_id = ?
+              AND ticker_id = (SELECT id FROM tickers WHERE symbol = ?)
+        """, (watchlist_id, symbol))
+        conn.commit()
     finally:
         conn.close()
 

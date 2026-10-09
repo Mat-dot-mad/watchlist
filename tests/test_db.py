@@ -179,3 +179,108 @@ def test_ticker_file_export_import_round_trip(temp_db, tmp_path):
 def test_importing_a_missing_file_returns_empty(tmp_path):
     """A fresh install with no ticker file must not crash on startup."""
     assert db.import_tickers_from_file(str(tmp_path / "nope.txt")) == []
+
+
+# ── Watchlists ───────────────────────────────────────────────────────
+# Lists are many-to-many: a ticker can be in several, and lists only
+# filter what's shown — deleting a list must never delete tickers.
+
+def _make_list(name, temp_db, *symbols):
+    """Create a list and put the given (new) tickers in it."""
+    wid = db.create_watchlist(name, temp_db)
+    for s in symbols:
+        db.add_ticker(s, temp_db)
+        db.add_ticker_to_watchlist(s, wid, temp_db)
+    return wid
+
+
+def test_create_list_and_count_its_tickers(temp_db):
+    _make_list("AI", temp_db, "NVDA", "MSFT")
+
+    assert db.list_watchlists(temp_db) == [{"id": 1, "name": "AI", "count": 2}]
+
+
+def test_list_names_are_unique_ignoring_case(temp_db):
+    assert db.create_watchlist("Semis", temp_db) is not None
+    assert db.create_watchlist("semis", temp_db) is None   # taken
+    assert db.create_watchlist("   ", temp_db) is None     # blank
+
+
+def test_a_ticker_can_be_in_several_lists(temp_db):
+    ai = _make_list("AI", temp_db, "NVDA")
+    semis = db.create_watchlist("Semis", temp_db)
+    db.add_ticker_to_watchlist("NVDA", semis, temp_db)
+
+    assert db.get_memberships(temp_db) == {"NVDA": {ai, semis}}
+
+
+def test_adding_to_the_same_list_twice_is_ignored(temp_db):
+    ai = _make_list("AI", temp_db, "NVDA")
+    db.add_ticker_to_watchlist("NVDA", ai, temp_db)
+
+    assert db.list_watchlists(temp_db)[0]["count"] == 1
+
+
+def test_latest_data_can_be_filtered_to_one_list(temp_db):
+    ai = _make_list("AI", temp_db, "NVDA")
+    db.add_ticker("KO", temp_db)
+
+    symbols = [r["symbol"] for r in db.get_latest_data(temp_db, watchlist_id=ai)]
+    assert symbols == ["NVDA"]
+
+
+def test_unsorted_means_in_no_list(temp_db):
+    _make_list("AI", temp_db, "NVDA")
+    db.add_ticker("KO", temp_db)
+
+    symbols = [r["symbol"] for r in db.get_latest_data(temp_db, unsorted=True)]
+    assert symbols == ["KO"]
+    assert db.count_unsorted(temp_db) == 1
+
+
+def test_deleting_a_list_keeps_its_tickers(temp_db):
+    """The important safety property: lists are views, not containers."""
+    ai = _make_list("AI", temp_db, "NVDA")
+
+    db.delete_watchlist(ai, temp_db)
+
+    assert db.list_watchlists(temp_db) == []
+    assert db.list_tickers(temp_db) == ["NVDA"]
+    assert db.count_unsorted(temp_db) == 1
+
+
+def test_deleting_a_ticker_removes_it_from_its_lists(temp_db):
+    _make_list("AI", temp_db, "NVDA")
+
+    db.remove_ticker("NVDA", temp_db)
+
+    assert db.list_watchlists(temp_db)[0]["count"] == 0
+
+
+def test_removing_from_one_list_leaves_the_others(temp_db):
+    ai = _make_list("AI", temp_db, "NVDA")
+    semis = db.create_watchlist("Semis", temp_db)
+    db.add_ticker_to_watchlist("NVDA", semis, temp_db)
+
+    db.remove_ticker_from_watchlist("NVDA", ai, temp_db)
+
+    assert db.get_memberships(temp_db) == {"NVDA": {semis}}
+    assert db.list_tickers(temp_db) == ["NVDA"]    # ticker itself survives
+
+
+def test_set_ticker_watchlists_replaces_memberships(temp_db):
+    ai = _make_list("AI", temp_db, "NVDA")
+    semis = db.create_watchlist("Semis", temp_db)
+
+    db.set_ticker_watchlists("NVDA", [semis, 999], temp_db)   # 999 doesn't exist
+
+    assert db.get_memberships(temp_db) == {"NVDA": {semis}}
+
+
+def test_rename_rejects_a_name_another_list_uses(temp_db):
+    ai = db.create_watchlist("AI", temp_db)
+    db.create_watchlist("Semis", temp_db)
+
+    assert db.rename_watchlist(ai, "semis", temp_db) is False
+    assert db.rename_watchlist(ai, "AI & Data", temp_db) is True
+    assert db.list_watchlists(temp_db)[0]["name"] == "AI & Data"

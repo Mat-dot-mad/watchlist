@@ -67,6 +67,56 @@ main {
 .flash-error { background: #2d1215; border-color: #da3633; color: #f85149; }
 
 /* Toolbar */
+/* Watchlist tabs */
+.tabs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+    border-bottom: 1px solid #30363d;
+    margin-bottom: 1rem;
+}
+
+.tab {
+    padding: 0.5rem 0.85rem;
+    color: #8b949e;
+    text-decoration: none;
+    font-size: 0.875rem;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;   /* sit the active underline on the nav's border */
+}
+
+.tab:hover { color: #e1e4e8; }
+.tab.active { color: #e1e4e8; border-bottom-color: #f78166; font-weight: 600; }
+.tab-muted { font-style: italic; }
+
+.tab-count {
+    display: inline-block;
+    min-width: 1.4em;
+    padding: 0 0.4em;
+    margin-left: 0.25rem;
+    border-radius: 999px;
+    background: #30363d;
+    color: #c9d1d9;
+    font-size: 0.75rem;
+    font-weight: 400;
+    text-align: center;
+}
+
+.tab-new { margin-left: auto; }
+
+.tab-new input {
+    width: 8.5rem;
+    background: transparent;
+    border: 1px dashed #30363d;
+    border-radius: 6px;
+    padding: 0.3rem 0.6rem;
+    color: #e1e4e8;
+    font-size: 0.8rem;
+}
+
+.tab-new input:focus { outline: none; border-style: solid; border-color: #1f6feb; }
+
 .toolbar {
     display: flex;
     justify-content: space-between;

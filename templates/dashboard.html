@@ -1,10 +1,26 @@
 {% extends "base.html" %}
 {% block content %}
+{# ── Watchlist tabs. Each tab is a URL (?list=<id>) so it can be bookmarked. ── #}
+<nav class="tabs">
+    <a href="{{ url_for('dashboard') }}" class="tab{% if not view %} active{% endif %}">All <span class="tab-count">{{ total_count }}</span></a>
+    {% for w in watchlists %}
+    <a href="{{ url_for('dashboard', list=w.id) }}" class="tab{% if current and current.id == w.id %} active{% endif %}">{{ w.name }} <span class="tab-count">{{ w.count }}</span></a>
+    {% endfor %}
+    {% if watchlists and (unsorted_count or view == 'unsorted') %}
+    <a href="{{ url_for('dashboard', list='unsorted') }}" class="tab tab-muted{% if view == 'unsorted' %} active{% endif %}">Unsorted <span class="tab-count">{{ unsorted_count }}</span></a>
+    {% endif %}
+    <form method="POST" action="{{ url_for('new_list') }}" class="tab-new">
+        <input type="hidden" name="list" value="{{ view }}">
+        <input type="text" name="name" placeholder="+ New list" maxlength="40" required aria-label="New list name">
+    </form>
+</nav>
+
 <div class="toolbar">
     <div class="toolbar-left">
         <form method="POST" action="{{ url_for('add_ticker') }}" class="add-form">
+            <input type="hidden" name="list" value="{{ view }}">
             <div class="autocomplete-wrapper">
-                <input type="text" name="symbol" placeholder="Search ticker..." autocomplete="off" required>
+                <input type="text" name="symbol" placeholder="{{ 'Add ticker to ' ~ current.name ~ '...' if current else 'Search ticker...' }}" autocomplete="off" required>
                 <div class="autocomplete-dropdown"></div>
             </div>
             <button type="submit" class="btn btn-primary btn-small">Add</button>
@@ -15,6 +31,7 @@
             {% if last_updated %}Updated: {{ last_updated }}{% else %}No data yet{% endif %}
         </span>
         <form method="POST" action="{{ url_for('refresh') }}" class="inline">
+            <input type="hidden" name="list" value="{{ view }}">
             <button type="submit" class="btn btn-primary btn-small" {% if refreshing %}disabled{% endif %}>
                 {% if refreshing %}
                     <span class="spinner"></span> Refreshing...
@@ -143,6 +160,10 @@
         </tbody>
     </table>
 </div>
+{% elif current %}
+<p class="empty">No tickers in {{ current.name }} yet. Add one above, or use the Lists button on the All tab.</p>
+{% elif view == 'unsorted' %}
+<p class="empty">Every ticker is in a list.</p>
 {% else %}
 <p class="empty">No tickers yet. Add one above to get started.</p>
 {% endif %}

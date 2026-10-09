@@ -172,18 +172,51 @@ def create_app():
         }
         return symbols.get(currency_code, f"{currency_code} " if currency_code else "$")
 
+    def _back():
+        """Redirect to the dashboard tab a form was submitted from.
+
+        Forms carry the current tab in a hidden "list" field, so actions
+        like Add or Refresh don't bounce you back to the All tab.
+        """
+        return redirect(url_for("dashboard", list=request.form.get("list") or None))
+
     # Routes. There is no login: access control is the network itself
     # (reachable only over Tailscale; UFW blocks every other interface).
     @app.route("/")
     def dashboard():
-        data = db.get_latest_data()
-        last_updated = db.get_last_updated()
-        trends = db.get_dashboard_trends()
-        rec_cache = db.get_all_recommendations_cache()
-        sparklines = db.get_all_sparklines()
+        # ?list=<id> shows one list, ?list=unsorted the tickers in no list,
+        # anything else (including an id that no longer exists) shows All.
+        watchlists = db.list_watchlists()
+        view = request.args.get("list", "")
+        current = next((w for w in watchlists if str(w["id"]) == view), None)
+        if current:
+            data = db.get_latest_data(watchlist_id=current["id"])
+        elif view == "unsorted":
+            data = db.get_latest_data(unsorted=True)
+        else:
+            view, data = "", db.get_latest_data()
+
+        # Only show analyst activity for the tickers on this tab.
+        shown = {row["symbol"] for row in data}
+        trends = {s: a for s, a in db.get_dashboard_trends().items() if s in shown}
+
         return render_template("dashboard.html",
-                               stocks=data, last_updated=last_updated, refreshing=_refreshing,
-                               trends=trends, rec_cache=rec_cache, sparklines=sparklines)
+                               stocks=data, last_updated=db.get_last_updated(),
+                               refreshing=_refreshing, trends=trends,
+                               rec_cache=db.get_all_recommendations_cache(),
+                               sparklines=db.get_all_sparklines(),
+                               watchlists=watchlists, current=current, view=view,
+                               total_count=len(db.list_tickers()),
+                               unsorted_count=db.count_unsorted())
+
+    @app.route("/lists/new", methods=["POST"])
+    def new_list():
+        name = request.form.get("name", "").strip()
+        list_id = db.create_watchlist(name)
+        if list_id is None:
+            flash(f'A list called "{name}" already exists.' if name else "List name can't be blank.", "error")
+            return _back()
+        return redirect(url_for("dashboard", list=list_id))
 
     @app.route("/ticker/<symbol>")
     def ticker_detail(symbol):
@@ -203,21 +236,32 @@ def create_app():
             flash("Refresh started...", "info")
         else:
             flash("Refresh already in progress.", "info")
-        return redirect(url_for("dashboard"))
+        return _back()
 
     @app.route("/ticker/add", methods=["POST"])
     def add_ticker():
+        # Adding while viewing a list also puts the ticker in that list —
+        # including an existing ticker, which is how you add it to a second list.
         symbol = request.form.get("symbol", "").strip().upper()
+        target = next((w for w in db.list_watchlists()
+                       if str(w["id"]) == request.form.get("list")), None)
         if symbol:
-            if db.add_ticker(symbol):
+            is_new = db.add_ticker(symbol)
+            if is_new:
                 # Immediately fetch data for the new ticker
                 data = fetch_ticker_data(symbol)
                 _save_ticker_data(data)
                 db.export_tickers_to_file()
+            if target:
+                if db.add_ticker_to_watchlist(symbol, target["id"]) or is_new:
+                    flash(f"Added {symbol} to {target['name']}.", "success")
+                else:
+                    flash(f"{symbol} is already in {target['name']}.", "info")
+            elif is_new:
                 flash(f"Added {symbol}.", "success")
             else:
                 flash(f"{symbol} already exists.", "info")
-        return redirect(url_for("dashboard"))
+        return _back()
 
     @app.route("/ticker/<symbol>/remove", methods=["POST"])
     def remove_ticker(symbol):

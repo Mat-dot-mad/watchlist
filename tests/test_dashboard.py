@@ -132,3 +132,64 @@ def test_sparkline_data_is_valid_json(client):
     parsed = json.loads(raw.replace("&#34;", '"'))
 
     assert parsed == [1.5, 2.5, 3.5]
+
+
+# ── Watchlist tabs ───────────────────────────────────────────────────
+
+def _symbols_shown(client, url):
+    body = client.get(url).get_data(as_text=True)
+    return re.findall(r'<td class="ticker">\s*<a [^>]*>([^<]+)</a>', body)
+
+
+def test_new_list_redirects_to_its_tab(client):
+    resp = client.post("/lists/new", data={"name": "AI"})
+
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith("/?list=1")
+    assert ">AI <span" in client.get("/").get_data(as_text=True)
+
+
+def test_duplicate_list_name_is_rejected(client):
+    client.post("/lists/new", data={"name": "AI"})
+
+    resp = client.post("/lists/new", data={"name": "ai"}, follow_redirects=True)
+
+    assert "already exists" in resp.get_data(as_text=True)
+    assert len(db.list_watchlists()) == 1
+
+
+def test_list_tab_shows_only_its_tickers(client):
+    _add_stock(symbol="NVDA")
+    _add_stock(symbol="KO")
+    ai = db.create_watchlist("AI")
+    db.add_ticker_to_watchlist("NVDA", ai)
+
+    assert _symbols_shown(client, f"/?list={ai}") == ["NVDA"]
+    assert _symbols_shown(client, "/") == ["KO", "NVDA"]
+    assert _symbols_shown(client, "/?list=unsorted") == ["KO"]
+
+
+def test_unknown_list_falls_back_to_all(client):
+    """An old bookmark to a deleted list must not error."""
+    _add_stock(symbol="KO")
+
+    assert _symbols_shown(client, "/?list=999") == ["KO"]
+
+
+def test_adding_an_existing_ticker_on_a_list_tab_adds_it_to_the_list(client):
+    """This is how a ticker gets into a second list."""
+    _add_stock(symbol="NVDA")
+    ai = db.create_watchlist("AI")
+
+    resp = client.post("/ticker/add", data={"symbol": "nvda", "list": str(ai)})
+
+    assert resp.headers["Location"].endswith(f"/?list={ai}")   # stays on the tab
+    assert db.get_memberships() == {"NVDA": {ai}}
+
+
+def test_refresh_returns_to_the_same_tab(client):
+    db.create_watchlist("AI")
+
+    resp = client.post("/refresh", data={"list": "1"})
+
+    assert resp.headers["Location"].endswith("/?list=1")

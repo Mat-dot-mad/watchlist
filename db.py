@@ -456,14 +456,16 @@ def set_ticker_watchlists(symbol, watchlist_ids, db_path=None):
 
 
 def add_ticker_to_watchlist(symbol, watchlist_id, db_path=None):
+    """Returns True if newly added, False if already there (or no such list)."""
     conn = get_db(db_path)
     try:
-        conn.execute("""
+        cur = conn.execute("""
             INSERT OR IGNORE INTO watchlist_tickers (watchlist_id, ticker_id)
             SELECT w.id, t.id FROM watchlists w, tickers t
             WHERE w.id = ? AND t.symbol = ?
         """, (watchlist_id, symbol))
         conn.commit()
+        return cur.rowcount > 0
     finally:
         conn.close()
 

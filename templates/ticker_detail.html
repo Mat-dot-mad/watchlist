@@ -6,7 +6,7 @@
 {% block content %}
 {% set cs = detail.currency|cur_sym %}
 <div class="detail-header">
-    <a href="{{ url_for('dashboard') }}" class="btn btn-small">&larr; Back</a>
+    <a href="{{ url_for('dashboard', list=back_list, _anchor='row-' ~ symbol) }}" class="btn btn-small">&larr; Back</a>
     <div class="detail-title">
         <h2>{{ detail.long_name or symbol }}</h2>
         <span class="ticker-symbol">{{ symbol }}</span>

@@ -256,7 +256,9 @@ def create_app():
             flash(f"Ticker {symbol} not found.", "error")
             return redirect(url_for("dashboard"))
         live = fetch_ticker_detail_live(symbol)
-        return render_template("ticker_detail.html", detail=detail, live=live, symbol=symbol)
+        # ?list= is the dashboard tab the user came from, so Back returns there.
+        return render_template("ticker_detail.html", detail=detail, live=live, symbol=symbol,
+                               back_list=request.args.get("list") or None)
 
     @app.route("/refresh", methods=["POST"])
     def refresh():

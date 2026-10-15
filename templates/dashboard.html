@@ -72,7 +72,7 @@
     <div class="trend-items">
         {% for a in all_actions|sort(attribute='action_date', reverse=true) %}
         {% if loop.index <= 8 %}
-        <a href="{{ url_for('ticker_detail', symbol=a.symbol) }}" class="trend-action-chip">
+        <a href="{{ url_for('ticker_detail', symbol=a.symbol, list=view or None) }}" class="trend-action-chip">
             <span class="trend-chip-symbol">{{ a.symbol }}</span>
             <span class="trend-chip-firm">{{ a.firm }}</span>
             {% if a.to_grade %}
@@ -123,7 +123,7 @@
             {% set cs = row.currency|cur_sym %}
             <tr id="row-{{ row.symbol }}">
                 <td class="ticker">
-                    <a href="{{ url_for('ticker_detail', symbol=row.symbol) }}">{{ row.symbol }}</a>
+                    <a href="{{ url_for('ticker_detail', symbol=row.symbol, list=view or None) }}">{{ row.symbol }}</a>
                     {# Fetch errors flag the ticker itself; a Status column that
                        says "OK" on every row cost a column for no information. #}
                     {% if row.status and row.status != 'OK' %}

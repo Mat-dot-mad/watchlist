@@ -266,3 +266,34 @@ def test_list_names_with_quotes_are_safe_in_confirm_dialogs(client):
     assert handlers, "expected single-quoted confirm handlers"
     for h in handlers:
         assert "'" not in h and "<" not in h    # tojson escaped them
+
+
+# ── Back from the detail page ────────────────────────────────────────
+
+def test_ticker_links_carry_the_current_tab(client):
+    _add_stock(symbol="SPGI")
+    fin = db.create_watchlist("Finance")
+    db.add_ticker_to_watchlist("SPGI", fin)
+
+    body = client.get(f"/?list={fin}").get_data(as_text=True)
+
+    assert f'href="/ticker/SPGI?list={fin}"' in body
+
+
+def test_detail_back_button_returns_to_the_tab_and_row(client, monkeypatch):
+    import app as app_module
+    # The detail page fetches live data from Yahoo; stub it out so the test
+    # needs no network. monkeypatch puts the real function back afterwards.
+    monkeypatch.setattr(app_module, "fetch_ticker_detail_live", lambda s: {
+        "analyst_history": [], "recommendations_monthly": [], "price_history": [],
+        "price_targets": {}, "earnings_history": [],
+        "revenue_earnings": {"annual": [], "quarterly": []},
+        "price_change": "", "price_change_pct": "",
+    })
+    _add_stock(symbol="SPGI")
+
+    with_tab = client.get("/ticker/SPGI?list=3").get_data(as_text=True)
+    without = client.get("/ticker/SPGI").get_data(as_text=True)
+
+    assert 'href="/?list=3#row-SPGI"' in with_tab
+    assert 'href="/#row-SPGI"' in without      # e.g. opened from a bookmark
